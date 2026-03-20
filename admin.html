@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title data-i18n="admin.title">Scanner AI - Control Panel</title>
+<!-- 引入 Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- 引入 Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+        :root {
+            /* 现代企业 SaaS 调色板 (ui-ux-pro-max 推荐) */
+            --bg-color: #F8FAFC;         /* slate-50 */
+            --card-bg: #FFFFFF;
+            --text-color: #1E293B;       /* slate-800 */
+            --text-muted: #64748B;       /* slate-500 */
+            --accent-color: #4F46E5;     /* indigo-600 */
+            --accent-hover: #4338CA;     /* indigo-700 */
+            --success-color: #10B981;    /* emerald-500 */
+            --danger-color: #EF4444;     /* red-500 */
+            --ai-color: #8B5CF6;         /* violet-500 */
+            --border-color: #E2E8F0;     /* slate-200 */
+            --border-radius: 16px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            justify-content: center;
+            line-height: 1.5;
+        }
+
+        .container { max-width: 1000px; width: 100%; }
+
+        h1 { 
+            text-align: center; 
+            margin-bottom: 8px; 
+            font-weight: 700; 
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 32px; font-weight: 500;}
+
+        .icon { width: 24px; height: 24px; stroke-width: 2.2px; }
+        .icon-sm { width: 18px; height: 18px; stroke-width: 2.2px; }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .two-column { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+            font-size: 1.15em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        label { font-weight: 600; flex: 1; font-size: 14px; color: var(--text-color); }
+        .label-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 400;}
+
+        input[type="number"], select {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text-color);
+            width: 120px;
+            transition: all 0.2s;
+        }
+        
+        input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        }
+
+        input[type="range"] { width: 180px; margin: 0; cursor: pointer; accent-color: var(--accent-color); }
+
+        .range-value {
+            min-width: 50px;
+            text-align: right;
+            font-family: 'Plus Jakarta Sans', monospace;
+            font-size: 13px;
+            color: var(--accent-color);
+            font-weight: 700;
+        }
+
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--border-color); transition: .3s; border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input:checked+.slider { background-color: var(--success-color); }
+        input:checked+.slider:before { transform: translateX(20px); }
+
+        .btn-primary {
+            background: var(--accent-color); color: white; border: none;
+            padding: 14px 24px; border-radius: 10px; font-size: 16px;
+            font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover); transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+        }
+
+        .btn-secondary {
+            background: #FFFFFF; color: var(--text-color); border: 1px solid var(--border-color);
+            padding: 10px 18px; border-radius: 8px; font-size: 14px;
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; justify-content: center; align-items: center; gap: 6px;
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-secondary:hover { background: #F8FAFC; border-color: #CBD5E1; color: var(--accent-color); }
+        .btn-success { background: var(--success-color); color: white; border-color: var(--success-color); }
+        .btn-success:hover { background: #059669; border-color: #059669; color: white; }
+
+        .btn-group { display: flex; gap: 12px; margin-top: 20px; }
+
+        .preview-canvas {
+            width: 100%; height: 180px; border: 1px solid var(--border-color); border-radius: 12px;
+            margin-top: 12px; background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            position: relative; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .roi-overlay {
+            position: absolute; border: 2px solid rgba(16, 185, 129, 0.9);
+            box-shadow: 0 0 0 2000px rgba(15, 23, 42, 0.6); border-radius: 4px;
+        }
+
+        #status-msg {
+            text-align: center; margin-top: 15px; min-height: 24px;
+            font-weight: 600; padding: 12px; border-radius: 8px;
+            font-size: 14px; transition: all 0.3s ease;
+        }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 15px; }
+        .stat-item { background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; }
+        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; font-weight: 600;}
+        .stat-value { font-size: 24px; font-weight: 700; color: var(--accent-color); }
+        .stat-value.ai { color: var(--ai-color); }
+
+        .info-box {
+            background: #EFF6FF; border-left: 4px solid var(--accent-color);
+            padding: 14px 18px; border-radius: 8px; font-size: 13px; line-height: 1.6; margin-top: 20px;
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .info-box.ai-info {
+            background: #F5F3FF; border-left-color: var(--ai-color);
+        }
+        .info-box i { flex-shrink: 0; stroke: currentColor; opacity: 0.7;}
+
+        .ai-badge {
+            display: inline-block; background: var(--ai-color); color: white;
+            padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;
+            vertical-align: middle; margin-left: 6px;
+        }
+    </style>
+<script src="i18n.js?v=1"></script>
+</head>
+<body>
+<div style="position: absolute; top: 20px; right: 20px;"><button class="btn-secondary" id="lang-toggle" onclick="switchLang()" style="border-radius: 20px; padding: 6px 16px; font-size: 13px;">🇬🇧 EN</button></div>
+<div class="container">
+<h1><i class="icon" data-lucide="scan-line" style="width:28px;height:28px;color:var(--accent-color)"></i> <span data-i18n="admin.header">Scanner AI Control Panel</span> <span class="ai-badge">AI</span></h1>
+<div class="subtitle" data-i18n="admin.subtitle">GLM-OCR Vision Model · Ollama Local Engine</div>
+<!-- 服务器状态 -->
+<div class="card">
+<h2><i class="icon" data-lucide="server" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.sys">System Status</span></h2>
+<div class="stats-grid">
+<div class="stat-item">
+<div class="stat-label" data-i18n="admin.stat.server">Server</div>
+<div class="stat-value" id="server-status" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:16px;">
+<span style="display:inline-block;width:10px;height:10px;background:var(--success-color);border-radius:50%;box-shadow:0 0 8px rgba(16,185,129,0.5)"></span>
+<span data-i18n="admin.stat.running" style="color: var(--success-color)">Running</span>
+</div>
+</div>
+<div class="stat-item">
+<div class="stat-label" data-i18n="admin.stat.engine">AI Engine</div>
+<div class="stat-value ai" id="ai-engine">GLM-OCR</div>
+</div>
+<div class="stat-item">
+<div class="stat-label" data-i18n="admin.stat.fps">Scan FPS</div>
+<div class="stat-value" id="scan-fps">0.7/s</div>
+</div>
+</div>
+<div class="btn-group">
+<button class="btn-secondary btn-success" onclick="openScanner()"><i class="icon-sm" data-lucide="smartphone"></i> <span data-i18n="admin.btn.open_scanner">Open Scanner</span></button>
+<button class="btn-secondary" onclick="openAdmin()"><i class="icon-sm" data-lucide="refresh-cw"></i> <span data-i18n="admin.btn.refresh">Refresh Panel</span></button>
+</div>
+</div>
+<!-- 数据导入 -->
+<div class="card" id="import-card">
+<h2><i class="icon" data-lucide="arrow-down-to-line" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.import">Data Import</span></h2>
+<div style="display:flex;gap:10px;margin-bottom:15px;align-items:stretch">
+<a class="btn-secondary" href="/api/template" style="text-decoration:none;text-align:center;flex:1"><i class="icon-sm" data-lucide="file-down"></i> <span data-i18n="admin.btn.template">Template</span></a>
+<button class="btn-secondary" onclick="viewImportedData()" style="flex:1"><i class="icon-sm" data-lucide="list"></i> <span data-i18n="admin.btn.view_list">View List</span></button>
+<label class="btn-secondary" style="text-align:center;flex:1;cursor:pointer"><i class="icon-sm" data-lucide="folder-open"></i> <span data-i18n="admin.btn.select_file">Select File</span><input accept=".xlsx,.xls,.csv" id="import-file" onchange="handleImportFile(this)" style="display:none" type="file"/></label>
+</div>
+<!-- 拖拽区域 -->
+<div id="drop-zone" onclick="document.getElementById('import-file').click()" onmouseout="this.style.borderColor='var(--border-color)';this.style.backgroundColor='#F8FAFC'" onmouseover="this.style.borderColor='var(--accent-color)';this.style.backgroundColor='#EFF6FF'" style="border:2px dashed var(--border-color);background:#F8FAFC;border-radius:12px;padding:36px;text-align:center;color:var(--text-muted);transition:all 0.3s;cursor:pointer">
+<i class="icon" data-lucide="file-spreadsheet" style="width:36px;height:36px;margin-bottom:12px;opacity:0.6"></i><br/>
+<span data-i18n="admin.dz.main" style="font-weight:600">Drop Excel/CSV here, or click to select</span>
+<div data-i18n="admin.dz.sub" style="font-size:13px;margin-top:6px;opacity:0.8">Supports .xlsx .xls .csv</div>
+</div>
+<!-- 解析结果 -->
+<div id="import-result" style="display:none;margin-top:15px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+<strong id="import-summary"></strong>
+<span id="import-mapping" style="font-size:12px;color:#86868b"></span>
+</div>
+<!-- 列映射 -->
+<div id="column-mapping" style="display:none;margin-bottom:12px;padding:12px;background:#fff3cd;border-radius:8px">
+<div style="font-size:13px;font-weight:600;margin-bottom:8px">⚠️ 未自动识别到列，请手动选择：</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1">
+<label style="font-size:12px">识别对象列</label>
+<select id="manual-name-col" style="width:100%"></select>
+</div>
+<div style="flex:1">
+<label style="font-size:12px">显示信息列 (可选)</label>
+<select id="manual-info-col" style="width:100%"><option value="-1"><span data-i18n="msg.none">-- None --</span></option></select>
+</div>
+</div>
+<button class="btn-secondary" onclick="reMapColumns()" style="margin-top:12px;width:100%"><i class="icon-sm" data-lucide="refresh-ccw"></i> <span data-i18n="admin.btn.remap">Remap Columns</span></button>
+</div>
+<!-- 预览表格 -->
+<div style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;margin-bottom:12px;">
+<div style="overflow-x:auto;">
+<table id="preview-table" style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:#F8FAFC;border-bottom:1px solid var(--border-color)"><th style="padding:10px 12px;text-align:left;font-weight:600">#</th><th style="padding:10px 12px;text-align:left;font-weight:600">识别对象</th><th style="padding:10px 12px;text-align:left;font-weight:600">显示信息</th></tr></thead>
+<tbody id="preview-body"></tbody>
+</table>
+</div>
+</div>
+<div style="display:flex;gap:12px;margin-top:16px">
+<button class="btn-secondary" onclick="cancelImport()" style="flex:1"><i class="icon-sm" data-lucide="x"></i> <span data-i18n="admin.btn.cancel">Cancel</span></button>
+<button class="btn-secondary btn-success" onclick="confirmImport()" style="flex:1"><i class="icon-sm" data-lucide="check"></i> <span data-i18n="admin.btn.confirm">Confirm Import</span></button>
+</div>
+</div>
+<!-- 数据查看区域 -->
+<div id="view-imported-data" style="display:none;margin-top:15px"></div>
+</div>
+<div class="two-column">
+<!-- 扫描设置 -->
+<div class="card">
+<h2><i class="icon" data-lucide="camera" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.camera">Scanning Settings</span></h2>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.interval">AI Scan Interval (ms)</span><div class="label-desc" data-i18n="admin.desc.interval">Recommended 1500ms+, AI needs inference time</div></label>
+<input id="scan-interval" max="5000" min="500" step="100" type="number"/>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.res">Camera Resolution</span></label>
+<select id="camera-res">
+<option value="640x480">VGA (640x480)</option>
+<option value="1280x720">HD (1280x720)</option>
+<option value="1920x1080">FHD (1920x1080)</option>
+</select>
+</div>
+<div class="info-box ai-info">
+<i data-lucide="sparkles"></i>
+<div><strong data-i18n="admin.info.ai_title">AI Mode Note:</strong> <span data-i18n="admin.info.ai_desc">GLM-OCR directly interprets raw images without traditional binarization. High perf required, interval 1500ms+ is recommended.</span></div>
+</div>
+</div>
+<!-- 匹配参数 -->
+<div class="card">
+<h2><i class="icon" data-lucide="target" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.ai">Matching Parameters</span></h2>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.ratio">Min Match Ratio</span><div class="label-desc" data-i18n="admin.desc.ratio">Require matching X% of target characters</div></label>
+<input id="match-ratio" max="0.9" min="0.3" step="0.1" type="range"/>
+<span class="range-value" id="match-ratio-val">60%</span>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.prefix">Require Prefix Match</span><div class="label-desc" data-i18n="admin.desc.prefix">Must include the starting part of target name</div></label>
+<label class="toggle-switch">
+<input checked="" id="require-prefix" type="checkbox"/>
+<span class="slider"></span>
+</label>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.length">Min Keyword Length</span><div class="label-desc" data-i18n="admin.desc.length">Minimum N chars to prevent misfires</div></label>
+<input id="min-keyword" max="8" min="3" step="1" type="number"/>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.distance">Levenshtein Tolerance</span><div class="label-desc" data-i18n="admin.desc.distance">Tolerance for added/missing/wrong chars</div></label>
+<input id="levenshtein" max="3" min="0" step="1" type="number"/>
+</div>
+<div class="info-box">
+<i data-lucide="lightbulb" style="color:#EAB308"></i>
+<div><strong data-i18n="admin.info.tip_title">Tip:</strong> <span data-i18n="admin.info.tip_desc">With AI, typos are rare. You can increase match ratio to 70%.</span></div>
+</div>
+</div>
+</div>
+<!-- ROI区域 -->
+<div class="card">
+<h2><i class="icon" data-lucide="crop" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.roi">Recognition ROI</span></h2>
+<div class="two-column" style="gap:24px;margin-bottom:16px;">
+<div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roix">ROI X</span></label>
+<input id="roi-x" max="50" min="0" step="1" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-x-val">10%</span>
+</div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roiy">ROI Y</span></label>
+<input id="roi-y" max="60" min="0" step="1" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-y-val">38%</span>
+</div>
+</div>
+<div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roiw">ROI Width</span></label>
+<input id="roi-w" max="100" min="20" step="5" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-w-val">80%</span>
+</div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roih">ROI Height</span></label>
+<input id="roi-h" max="80" min="10" step="5" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-h-val">25%</span>
+</div>
+</div>
+</div>
+<div class="preview-canvas" id="roi-preview">
+<div class="roi-overlay" id="roi-rect"></div>
+</div>
+<div class="info-box">
+<i data-lucide="scan" style="color:var(--success-color)"></i>
+<div><strong data-i18n="admin.info.roi_title">Feature Note:</strong> <span data-i18n="admin.info.roi_desc">The green box is the actual cropped area sent to AI. Narrowing it speeds up OCR significantly.</span></div>
+</div>
+</div>
+<div class="two-column">
+<!-- 调试选项 -->
+<div class="card">
+<h2><i class="icon" data-lucide="settings-2" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.debug">Debug Options</span></h2>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.show_log">Show Debug Log</span></label>
+<label class="toggle-switch">
+<input id="show-debug" type="checkbox"/>
+<span class="slider"></span>
+</label>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.show_overlay">Show Overlay on Phone</span></label>
+<label class="toggle-switch">
+<input checked="" id="show-overlay" type="checkbox"/>
+<span class="slider"></span>
+</label>
+</div>
+</div>
+<!-- 关于 -->
+<div class="card">
+<h2><i class="icon" data-lucide="info" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.about">About System</span></h2>
+<div style="font-size:13px; line-height:1.8; color:var(--text-muted)">
+<p style="margin:4px 0"><strong data-i18n="admin.about.ocr">OCR Engine</strong>：<span data-i18n="admin.about.ocr_val">GLM-OCR 0.9B (Zhipu AI Vision Model)</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.engine">Inference Engine</strong>：<span data-i18n="admin.about.engine_val">Ollama (Apple Metal GPU Accel)</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.alg">Matching Algorithm</strong>：<span data-i18n="admin.about.alg_val">Keyword / Prefix / Levenshtein Distance</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.db">Built-in Data</strong>：<span id="target-count" style="font-weight:700;color:var(--accent-color)">--</span> <span data-i18n="admin.about.db_val">targets tracked</span></p>
+</div>
+</div>
+</div>
+<button class="btn-primary" onclick="saveConfig()"><i class="icon-sm" data-lucide="save"></i> <span data-i18n="admin.btn.save">Save &amp; Apply Config</span></button>
+<div id="status-msg"></div>
+</div>
+<script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
+        let currentConfig = {};
+
+        async function openScanner() {
+            showStatus('📱 正在手机上打开扫描器...', '#0071e3');
+            try {
+                const res = await fetch('/api/open-on-phone', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showStatus('✅ 已在手机上打开扫描器', 'green');
+                    setTimeout(() => showStatus('', ''), 3000);
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (e) {
+                showStatus('❌ 打开失败: ' + e.message, 'red');
+            }
+        }
+
+        function openAdmin() { location.reload(); }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/config.json?t=' + Date.now());
+                currentConfig = await res.json();
+                renderConfig();
+                updateStats();
+
+                // Load target count
+                const compRes = await fetch('/api/targets?t=' + Date.now());
+                const targets = await compRes.json();
+                document.getElementById('target-count').textContent = targets.length;
+            } catch (e) {
+                console.error('Failed to load config', e);
+                showStatus('⚠️ 加载配置失败', 'red');
+            }
+        }
+
+        function renderConfig() {
+            // Scan
+            document.getElementById('scan-interval').value = currentConfig.scan.interval;
+            const resKey = `${currentConfig.scan.width}x${currentConfig.scan.height}`;
+            document.getElementById('camera-res').value = resKey;
+
+            // ROI
+            document.getElementById('roi-x').value = currentConfig.roi.x;
+            document.getElementById('roi-y').value = currentConfig.roi.y;
+            document.getElementById('roi-w').value = currentConfig.roi.width;
+            document.getElementById('roi-h').value = currentConfig.roi.height;
+            updateRoiPreview();
+
+            // Matching
+            document.getElementById('match-ratio').value = currentConfig.matching.minMatchRatio || 0.6;
+            document.getElementById('match-ratio-val').textContent = Math.round((currentConfig.matching.minMatchRatio || 0.6) * 100) + '%';
+            document.getElementById('require-prefix').checked = currentConfig.matching.requirePrefix !== false;
+            document.getElementById('min-keyword').value = currentConfig.matching.minKeywordLength || 5;
+            document.getElementById('levenshtein').value = currentConfig.matching.levenshteinDistance;
+
+            // UI
+            document.getElementById('show-debug').checked = currentConfig.ui.showDebug;
+            document.getElementById('show-overlay').checked = currentConfig.ui.showOverlay;
+        }
+
+        function updateRoiPreview() {
+            const x = document.getElementById('roi-x').value;
+            const y = document.getElementById('roi-y').value;
+            const w = document.getElementById('roi-w').value;
+            const h = document.getElementById('roi-h').value;
+
+            document.getElementById('roi-x-val').innerText = x + '%';
+            document.getElementById('roi-y-val').innerText = y + '%';
+            document.getElementById('roi-w-val').innerText = w + '%';
+            document.getElementById('roi-h-val').innerText = h + '%';
+
+            const rect = document.getElementById('roi-rect');
+            rect.style.left = x + '%';
+            rect.style.top = y + '%';
+            rect.style.width = w + '%';
+            rect.style.height = h + '%';
+        }
+
+        function updateMatchRatioLabel() {
+            const val = document.getElementById('match-ratio').value;
+            document.getElementById('match-ratio-val').textContent = Math.round(val * 100) + '%';
+        }
+
+        function updateStats() {
+            const interval = document.getElementById('scan-interval').value;
+            const fps = (1000 / interval).toFixed(1);
+            document.getElementById('scan-fps').textContent = fps + '/s';
+        }
+
+        ['roi-x', 'roi-y', 'roi-w', 'roi-h'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateRoiPreview);
+        });
+        document.getElementById('scan-interval').addEventListener('input', updateStats);
+        document.getElementById('match-ratio').addEventListener('input', updateMatchRatioLabel);
+
+        function showStatus(msg, color) {
+            const status = document.getElementById('status-msg');
+            status.textContent = msg;
+            status.style.color = color;
+            status.style.background = color === 'green' ? '#e8f5e9' : color === 'red' ? '#ffebee' : '#fff3cd';
+        }
+
+        async function saveConfig() {
+            showStatus('💾 保存中...', '#666');
+
+            const newConfig = {
+                scan: {
+                    interval: parseInt(document.getElementById('scan-interval').value),
+                    width: parseInt(document.getElementById('camera-res').value.split('x')[0]),
+                    height: parseInt(document.getElementById('camera-res').value.split('x')[1]),
+                    frameRate: 30
+                },
+                roi: {
+                    x: parseFloat(document.getElementById('roi-x').value),
+                    y: parseFloat(document.getElementById('roi-y').value),
+                    width: parseFloat(document.getElementById('roi-w').value),
+                    height: parseFloat(document.getElementById('roi-h').value)
+                },
+                matching: {
+                    minConfidence: 0,
+                    levenshteinDistance: parseInt(document.getElementById('levenshtein').value),
+                    minMatchRatio: parseFloat(document.getElementById('match-ratio').value),
+                    requirePrefix: document.getElementById('require-prefix').checked,
+                    minKeywordLength: parseInt(document.getElementById('min-keyword').value)
+                },
+                ui: {
+                    showDebug: document.getElementById('show-debug').checked,
+                    showOverlay: document.getElementById('show-overlay').checked
+                }
+            };
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newConfig)
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showStatus(t('msg.save_success'), 'green');
+                    currentConfig = newConfig;
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (e) {
+                showStatus('❌ 保存失败: ' + e.message, 'red');
+            }
+        }
+
+        // === 数据导入 ===
+        let importData = null; // 暂存解析结果
+
+        // 拖拽支持
+        const dropZone = document.getElementById('drop-zone');
+        ['dragenter','dragover'].forEach(evt => {
+            dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.style.borderColor = '#0071e3'; dropZone.style.background = '#f0f7ff'; });
+        });
+        ['dragleave','drop'].forEach(evt => {
+            dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.style.borderColor = '#d2d2d7'; dropZone.style.background = 'transparent'; });
+        });
+        dropZone.addEventListener('drop', e => {
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+
+        function handleImportFile(input) {
+            if (input.files[0]) processFile(input.files[0]);
+        }
+
+        async function processFile(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+                showStatus('❌ 不支持的文件格式，请使用 .xlsx 或 .csv', 'red');
+                return;
+            }
+
+            showStatus('📊 正在解析...', '#0071e3');
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const res = await fetch('/api/upload-excel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fileData: e.target.result, fileName: file.name })
+                    });
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+
+                    importData = data;
+                    renderImportResult(data);
+                    showStatus(t('msg.parse_ok'), 'green');
+                } catch (err) {
+                    showStatus('❌ 解析失败: ' + err.message, 'red');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderImportResult(data) {
+            document.getElementById('import-result').style.display = 'block';
+            document.getElementById('drop-zone').style.display = 'none';
+            document.getElementById('import-summary').textContent = `共 ${data.totalRows} 条数据`;
+
+            const mappingEl = document.getElementById('import-mapping');
+            const columnMapEl = document.getElementById('column-mapping');
+            const nameSelect = document.getElementById('manual-name-col');
+            const infoSelect = document.getElementById('manual-info-col');
+
+            // 永远重新填充下拉框选项
+            nameSelect.innerHTML = '<option value="-1">-- 请选择 --</option>';
+            infoSelect.innerHTML = '<option value="-1"><span data-i18n="msg.none">-- None --</span></option>';
+            data.headers.forEach((h, i) => {
+                nameSelect.innerHTML += `<option value="${i}">${h}</option>`;
+                infoSelect.innerHTML += `<option value="${i}">${h}</option>`;
+            });
+
+            // 回填已识别的结果
+            if (data.nameCol >= 0) nameSelect.value = data.nameCol;
+            if (data.infoCol >= 0) infoSelect.value = data.infoCol;
+
+            // 如果两个都自动识别成功，显示绿色提示语
+            if (data.nameCol >= 0 && data.infoCol >= 0) {
+                mappingEl.textContent = `✅ 自动完美映射: "${data.headers[data.nameCol]}" → 识别对象, "${data.headers[data.infoCol]}" → 显示信息`;
+                mappingEl.style.color = 'var(--success-color)';
+                columnMapEl.style.display = 'block'; // 仍然显示，让用户有能力修改
+            } else if (data.nameCol >= 0) {
+                mappingEl.textContent = `⚠️ 部分映射: "${data.headers[data.nameCol]}" → 识别对象。未发现"显示信息"列，请手动选择或留空。`;
+                mappingEl.style.color = 'var(--text-color)';
+                columnMapEl.style.display = 'block';
+            } else {
+                mappingEl.textContent = '❌ 未能自动识别"识别对象"表头列，请手动选择对应的列';
+                mappingEl.style.color = 'var(--danger-color)';
+                columnMapEl.style.display = 'block';
+            }
+
+            // 渲染预览
+            const tbody = document.getElementById('preview-body');
+            tbody.innerHTML = data.preview.map((item, i) =>
+                `<tr style="border-bottom:1px solid #eee">
+                    <td style="padding:6px 8px;color:#86868b">${i+1}</td>
+                    <td style="padding:6px 8px">${item.name || '<span style=color:#ccc><span data-i18n="msg.empty">Empty</span></span>'}</td>
+                    <td style="padding:6px 8px;color:#666">${item.displayInfo || '-'}</td>
+                </tr>`
+            ).join('');
+        }
+
+        function reMapColumns() {
+            const nameCol = parseInt(document.getElementById('manual-name-col').value);
+            const infoCol = parseInt(document.getElementById('manual-info-col').value);
+            importData.nameCol = nameCol;
+            importData.infoCol = infoCol;
+
+            // 重新生成预览
+            importData.preview = importData.allRows.slice(0, 5).map(row => ({
+                name: nameCol >= 0 && nameCol < row.length ? row[nameCol] : '',
+                displayInfo: infoCol >= 0 && infoCol < row.length ? row[infoCol] : ''
+            }));
+            renderImportResult(importData);
+            document.getElementById('column-mapping').style.display = 'none';
+            document.getElementById('import-mapping').textContent =
+                `手动映射: "${importData.headers[nameCol]}" → 识别对象` +
+                (infoCol >= 0 ? `, "${importData.headers[infoCol]}" → 显示信息` : '');
+        }
+
+        async function confirmImport() {
+            if (!importData || importData.nameCol < 0) {
+                showStatus('⚠️ 请先选择识别对象列', 'red');
+                return;
+            }
+
+            showStatus('💾 正在导入...', '#0071e3');
+
+            try {
+                const res = await fetch('/api/import-confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nameCol: importData.nameCol,
+                        infoCol: importData.infoCol,
+                        allRows: importData.allRows
+                    })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                showStatus(t('msg.import_ok'), 'green');
+                cancelImport();
+
+                // 刷新目标数量
+                document.getElementById('target-count').textContent = data.count;
+            } catch (err) {
+                showStatus('❌ 导入失败: ' + err.message, 'red');
+            }
+        }
+
+        function cancelImport() {
+            document.getElementById('import-result').style.display = 'none';
+            document.getElementById('drop-zone').style.display = 'block';
+            
+            // 隐藏查看区域
+            const viewDiv = document.getElementById('view-imported-data');
+            if (viewDiv) viewDiv.style.display = 'none';
+            
+            importData = null;
+        }
+
+        // === 查看已导入数据 ===
+        async function viewImportedData() {
+            try {
+                showStatus('正在加载数据...', '#666');
+                const res = await fetch('/api/targets?t=' + Date.now());
+                const targets = await res.json();
+                
+                let html = '<div style="margin-bottom:10px;font-weight:600">当前共有 ' + targets.length + ' 条识别对象记录：</div>';
+                html += '<div style="max-height:300px;overflow-y:auto;border:1px solid #e0e0e5;border-radius:8px">';
+                html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+                html += '<thead style="position:sticky;top:0;background:#f5f5f7;z-index:1"><tr style="border-bottom:1px solid #e0e0e5"><th style="padding:8px;text-align:left">#</th><th style="padding:8px;text-align:left">识别对象</th><th style="padding:8px;text-align:left">显示信息</th></tr></thead>';
+                html += '<tbody>';
+                targets.forEach((item, i) => {
+                    html += `<tr style="border-bottom:1px solid #eee">
+                        <td style="padding:6px 8px;color:#86868b">${i+1}</td>
+                        <td style="padding:6px 8px">${item.name}</td>
+                        <td style="padding:6px 8px;color:#666">${item.displayInfo || '-'}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+                html += '<div style="margin-top:12px;display:flex;justify-content:flex-end"><button class="btn-secondary" onclick="cancelImport()">关闭列表</button></div>';
+                
+                // 切换UI显示视图
+                document.getElementById('drop-zone').style.display = 'none';
+                document.getElementById('import-result').style.display = 'none';
+                
+                const viewDiv = document.getElementById('view-imported-data');
+                viewDiv.innerHTML = html;
+                viewDiv.style.display = 'block';
+                
+                showStatus('', '');
+            } catch (e) {
+                showStatus('❌ 加载失败: ' + e.message, 'red');
+            }
+        }
+
+        loadConfig();
+    </script>
+</body>
+</html>

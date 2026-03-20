@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Contract Scanner</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=20260130-final-ui">
+</head>
+
+<body>
+  <!-- 状态覆盖层 -->
+  <div id="overlay" class="overlay scanning">
+    <div class="status-container">
+      <div id="status-icon" class="status-icon">⚡️</div>
+      <div id="status-text" class="status-text" data-i18n="app.title">Contract Scanner</div>
+      <div id="matched-target" class="matched-target"></div>
+    </div>
+
+    <!-- 开始按钮 (移出胶囊，居中显示) -->
+    <button id="start-btn" class="start-btn" data-i18n="app.start">Tap to Start Scanning</button>
+
+    <!-- 兜底文件上传 -->
+    <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none"
+      onchange="handleFileUpload(this)">
+  </div>
+
+  <!-- 摄像头视频 -->
+  <video id="video" autoplay playsinline muted></video>
+
+  <!-- 扫描区域指示框 -->
+  <div class="scan-region">
+    <div class="scan-corner-bl"></div>
+    <div class="scan-corner-br"></div>
+    <div class="scan-line"></div>
+    <div class="scan-hint">PRO MODE</div>
+  </div>
+
+  <!-- 隐藏的Canvas用于截取帧 -->
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <!-- 详细调试信息 -->
+  <div id="debug" class="debug"></div>
+
+  <!-- 候选目标列表（位置提升） -->
+  <div id="candidates-panel" class="candidates-panel">
+    <div class="candidates-header" data-i18n="app.candidates">Possible Matches</div>
+    <div id="candidates-list" class="candidates-list">
+      <div class="candidate-item low-score">
+        <div class="candidate-info">
+          <div class="candidate-name" style="opacity:0.7" data-i18n="app.scanning">Scanning...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <!-- 控制按钮 (位置移动到右下角FAB) -->
+  <div class="controls" style="display:flex; gap:10px;">
+    <!-- 新增语言切换按钮 -->
+    <button id="lang-toggle" class="control-btn" style="font-size:12px; width:auto; padding:0 12px; height:44px; display:flex; align-items:center; justify-content:center;" onclick="switchLang()"></button>
+    <button id="toggle-btn" class="control-btn">⏸</button>
+  </div>
+
+  <!-- AI OCR via Ollama (服务端) -->
+  <script src="i18n.js?v=1"></script>
+  <script src="app.js?v=20260320-i18n"></script>
+</body>
+
+</html>

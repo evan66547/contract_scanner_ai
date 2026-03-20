@@ -1,0 +1,25 @@
+{
+  "scan": {
+    "interval": 1500,
+    "width": 1280,
+    "height": 720,
+    "frameRate": 30
+  },
+  "roi": {
+    "x": 10,
+    "y": 38,
+    "width": 80,
+    "height": 25
+  },
+  "matching": {
+    "minConfidence": 0,
+    "levenshteinDistance": 1,
+    "minMatchRatio": 0.6,
+    "requirePrefix": true,
+    "minKeywordLength": 5
+  },
+  "ui": {
+    "showDebug": false,
+    "showOverlay": true
+  }
+}
