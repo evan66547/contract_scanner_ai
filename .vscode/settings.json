@@ -1,0 +1,7 @@
+{
+    "python.defaultInterpreterPath": "/Users/evan/Documents/WorkSpace/01_Projects/contract_scanner_ai/.venv/bin/python",
+    "python.terminal.activateEnvInSelectedTerminal": true,
+    "python.analysis.extraPaths": [
+        "./"
+    ]
+}

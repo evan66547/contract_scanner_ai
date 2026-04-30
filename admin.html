@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title data-i18n="admin.title">Scanner AI - Control Panel</title>
+<!-- 引入 Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- 引入 Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+        :root {
+            /* 现代企业 SaaS 调色板 (ui-ux-pro-max 推荐) */
+            --bg-color: #F8FAFC;         /* slate-50 */
+            --card-bg: #FFFFFF;
+            --text-color: #1E293B;       /* slate-800 */
+            --text-muted: #64748B;       /* slate-500 */
+            --accent-color: #0D9488;     /* teal-600 */
+            --accent-hover: #0F766E;     /* teal-700 */
+            --success-color: #10B981;    /* emerald-500 */
+            --danger-color: #EF4444;     /* red-500 */
+            --ai-color: #8B5CF6;         /* violet-500 */
+            --border-color: #E2E8F0;     /* slate-200 */
+            --border-radius: 16px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            justify-content: center;
+            line-height: 1.5;
+        }
+
+        .container { max-width: 1000px; width: 100%; }
+
+        h1 { 
+            text-align: center; 
+            margin-bottom: 8px; 
+            font-weight: 700; 
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 32px; font-weight: 500;}
+
+        .icon { width: 24px; height: 24px; stroke-width: 2.2px; }
+        .icon-sm { width: 18px; height: 18px; stroke-width: 2.2px; }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .two-column { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+            font-size: 1.15em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        label { font-weight: 600; flex: 1; font-size: 14px; color: var(--text-color); }
+        .label-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 400;}
+
+        input[type="number"], select {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text-color);
+            width: 120px;
+            transition: all 0.2s;
+        }
+        
+        input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+        }
+
+        input[type="range"] { width: 180px; margin: 0; cursor: pointer; accent-color: var(--accent-color); }
+
+        .range-value {
+            min-width: 50px;
+            text-align: right;
+            font-family: 'Plus Jakarta Sans', monospace;
+            font-size: 13px;
+            color: var(--accent-color);
+            font-weight: 700;
+        }
+
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--border-color); transition: .3s; border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input:checked+.slider { background-color: var(--success-color); }
+        input:checked+.slider:before { transform: translateX(20px); }
+
+        .btn-primary {
+            background: var(--accent-color); color: white; border: none;
+            padding: 14px 24px; border-radius: 10px; font-size: 16px;
+            font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover); transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25);
+        }
+
+        .btn-secondary {
+            background: #FFFFFF; color: var(--text-color); border: 1px solid var(--border-color);
+            padding: 10px 18px; border-radius: 8px; font-size: 14px;
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; justify-content: center; align-items: center; gap: 6px;
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-secondary:hover { background: #F8FAFC; border-color: #CBD5E1; color: var(--accent-color); box-shadow: 0 2px 8px rgba(13, 148, 136, 0.08); }
+        .btn-success { background: var(--success-color); color: white; border-color: var(--success-color); }
+        .btn-success:hover { background: #059669; border-color: #059669; color: white; }
+
+        .btn-group { display: flex; gap: 12px; margin-top: 20px; }
+
+        .preview-canvas {
+            width: 100%; height: 180px; border: 1px solid var(--border-color); border-radius: 12px;
+            margin-top: 12px; background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            position: relative; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .roi-overlay {
+            position: absolute; border: 2px solid rgba(16, 185, 129, 0.9);
+            box-shadow: 0 0 0 2000px rgba(15, 23, 42, 0.6); border-radius: 4px;
+        }
+
+        #status-msg {
+            text-align: center; margin-top: 15px; min-height: 24px;
+            font-weight: 600; padding: 12px; border-radius: 8px;
+            font-size: 14px; transition: all 0.3s ease;
+        }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 15px; }
+        .stat-item { background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .stat-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; font-weight: 600;}
+        .stat-value { font-size: 24px; font-weight: 700; color: var(--accent-color); }
+        .stat-value.ai { color: var(--ai-color); }
+
+        .info-box {
+            background: #F0FDFA; border-left: 4px solid var(--accent-color);
+            padding: 14px 18px; border-radius: 8px; font-size: 13px; line-height: 1.6; margin-top: 20px;
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .info-box.ai-info {
+            background: #F5F3FF; border-left-color: var(--ai-color);
+        }
+        .info-box i { flex-shrink: 0; stroke: currentColor; opacity: 0.7;}
+
+        .ai-badge {
+            display: inline-block; background: var(--ai-color); color: white;
+            padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;
+            vertical-align: middle; margin-left: 6px;
+        }
+
+        .engine-tab.active {
+            border-color: var(--accent-color) !important;
+            background: #F0FDFA;
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+        }
+        .engine-tab:hover:not(.active) {
+            border-color: #94a3b8;
+            background: #F8FAFC;
+        }
+    </style>
+<script src="i18n.js?v=1"></script>
+</head>
+<body>
+<div style="position: absolute; top: 20px; right: 20px;"><button class="btn-secondary" id="lang-toggle" onclick="switchLang()" style="border-radius: 20px; padding: 6px 16px; font-size: 13px;">🇬🇧 EN</button></div>
+<div class="container">
+<h1><i class="icon" data-lucide="scan-line" style="width:28px;height:28px;color:var(--accent-color)"></i> <span data-i18n="admin.header">Scanner AI Control Panel</span> <span class="ai-badge">AI</span></h1>
+<div class="subtitle" data-i18n="admin.subtitle">GLM-OCR Vision Model · Ollama Local Engine</div>
+<!-- 服务器状态 -->
+<div class="card">
+<h2><i class="icon" data-lucide="server" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.sys">System Status</span></h2>
+<div class="stats-grid">
+<div class="stat-item">
+<div class="stat-label" data-i18n="admin.stat.server">Server</div>
+<div class="stat-value" id="server-status" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:16px;">
+<span style="display:inline-block;width:10px;height:10px;background:var(--success-color);border-radius:50%;box-shadow:0 0 8px rgba(16,185,129,0.5)"></span>
+<span data-i18n="admin.stat.running" style="color: var(--success-color)">Running</span>
+</div>
+</div>
+<div class="stat-item">
+<div class="stat-label" data-i18n="admin.stat.engine">AI Engine</div>
+<div class="stat-value ai" id="ai-engine">GLM-OCR</div>
+<div id="model-status" style="font-size:11px;margin-top:6px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px">
+<span style="display:inline-block;width:8px;height:8px;background:#94a3b8;border-radius:50%"></span>
+<span style="color:#94a3b8" data-i18n="admin.stat.checking">检查中...</span>
+</div>
+</div>
+<div class="stat-item">
+<div class="stat-label" data-i18n="admin.stat.fps">Scan FPS</div>
+<div class="stat-value" id="scan-fps">0.7/s</div>
+</div>
+</div>
+<div class="btn-group">
+<button class="btn-secondary btn-success" onclick="openScanner()"><i class="icon-sm" data-lucide="smartphone"></i> <span data-i18n="admin.btn.open_scanner">Open Scanner</span></button>
+<button class="btn-secondary" onclick="openAdmin()"><i class="icon-sm" data-lucide="refresh-cw"></i> <span data-i18n="admin.btn.refresh">Refresh Panel</span></button>
+<button class="btn-secondary" style="background:#FEF2F2;color:#DC2626;border-color:#FECACA" onclick="adminReset()"><i class="icon-sm" data-lucide="power"></i> <span data-i18n="admin.btn.reset">Reset Scanner</span></button>
+</div>
+</div>
+<!-- 无线调试 -->
+<div class="card" id="wifi-card">
+<h2 style="display:flex;align-items:center;gap:8px"><i class="icon" data-lucide="wifi" style="color:var(--accent-color)"></i> 无线调试 <span class="ai-badge">ADB</span><span id="adb-led" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#94a3b8;margin-left:4px;box-shadow:0 0 6px rgba(148,163,184,0.4);transition:background 0.3s"></span></h2>
+<div id="adb-status-display" style="font-size:12px;color:var(--text-muted);margin-bottom:12px">检测中...</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFC;border-radius:8px;border:1px solid var(--border-color)">
+<div style="width:24px;height:24px;border-radius:50%;background:rgba(20,184,166,0.1);color:var(--accent-color);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">1</div>
+<div style="flex:1">
+<div style="font-size:13px;font-weight:600">开启网络模式</div>
+<div style="font-size:11px;color:var(--text-muted)">保持USB线连接，开启后手机可无线接收ADB指令</div>
+</div>
+<button class="btn-secondary" id="btn-adb-start" onclick="adbWifiStart()" style="font-size:12px;padding:6px 14px">开启</button>
+</div>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFC;border-radius:8px;border:1px solid var(--border-color)">
+<div style="width:24px;height:24px;border-radius:50%;background:rgba(20,184,166,0.1);color:var(--accent-color);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">2</div>
+<div style="flex:1">
+<div style="font-size:13px;font-weight:600">连接 WiFi ADB</div>
+<div style="font-size:11px;color:var(--text-muted)">拔掉数据线，通过WiFi与手机建立连接</div>
+</div>
+<button class="btn-secondary" id="btn-adb-connect" onclick="adbWifiConnect()" style="font-size:12px;padding:6px 14px">连接</button>
+</div>
+<div id="adb-result" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:8px">
+<div style="font-size:12px;font-weight:600;color:var(--success-color);margin-bottom:4px">无线连接成功</div>
+<div style="font-size:12px;color:var(--text-main)">手机浏览器访问：<span style="font-family:monospace">http://localhost:8080</span></div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:4px">无数据线，摄像头权限正常可用</div>
+</div>
+</div>
+</div>
+<!-- OCR 引擎配置 -->
+<div class="card" id="ocr-card">
+<h2><i class="icon" data-lucide="brain" style="color:var(--ai-color)"></i> <span data-i18n="admin.card.ocr">OCR Engine</span> <span class="ai-badge">AI</span></h2>
+<!-- 引擎选择 - 按钮式切换 -->
+<div style="display:flex;gap:10px;margin-bottom:20px">
+<label style="flex:1;cursor:pointer">
+<input type="radio" name="ocr-engine" value="ollama" checked onchange="switchOcrProvider()" style="display:none"/>
+<div id="engine-tab-ollama" class="engine-tab active" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
+<div style="font-size:24px;margin-bottom:4px">🖥️</div>
+<div style="font-weight:700;font-size:13px">Ollama</div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:2px">本地 · 免费 · 离线</div>
+</div>
+</label>
+<label style="flex:1;cursor:pointer">
+<input type="radio" name="ocr-engine" value="baidu" onchange="switchOcrProvider()" style="display:none"/>
+<div id="engine-tab-baidu" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
+<div style="font-size:24px;margin-bottom:4px">☁️</div>
+<div style="font-weight:700;font-size:13px">百度 OCR</div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:2px">云端 · 中文最强 · 有免费额度</div>
+</div>
+</label>
+<label style="flex:1;cursor:pointer">
+<input type="radio" name="ocr-engine" value="ocrspace" onchange="switchOcrProvider()" style="display:none"/>
+<div id="engine-tab-ocrspace" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
+<div style="font-size:24px;margin-bottom:4px">🌐</div>
+<div style="font-weight:700;font-size:13px">OCR.space</div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:2px">云端 · 免费25000次/月</div>
+</div>
+</label>
+</div>
+<select id="ocr-provider" style="display:none">
+<option value="ollama">Ollama</option>
+<option value="baidu">Baidu</option>
+<option value="ocrspace">OCR.space</option>
+</select>
+<!-- Ollama 配置 -->
+<div id="ocr-ollama" class="ocr-provider-config">
+<div class="form-group">
+<label><span data-i18n="admin.lbl.ollama_model">Model</span><div class="label-desc">Ollama 中的视觉模型名称</div></label>
+<input id="ollama-model" type="text" style="width:200px" placeholder="glm-ocr"/>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.ollama_keepalive">Keep Alive</span><div class="label-desc">模型驻留内存时间</div></label>
+<input id="ollama-keepalive" type="text" style="width:200px" placeholder="10m"/>
+</div>
+<div class="info-box ai-info">
+<i data-lucide="shield-check"></i>
+<div><strong>隐私优势：</strong>所有数据完全在本地处理，不发送任何信息到外部网络。</div>
+</div>
+</div>
+<!-- 百度 OCR 配置 -->
+<div id="ocr-baidu" class="ocr-provider-config" style="display:none">
+<div class="form-group">
+<label>API Key<div class="label-desc">百度智能云控制台获取</div></label>
+<input id="baidu-apikey" type="password" style="width:260px" placeholder="百度云 API Key"/>
+</div>
+<div class="form-group">
+<label>Secret Key<div class="label-desc">与 API Key 配对使用</div></label>
+<input id="baidu-secretkey" type="password" style="width:260px" placeholder="百度云 Secret Key"/>
+</div>
+<div class="info-box">
+<i data-lucide="info" style="color:var(--accent-color)"></i>
+<div><strong>免费额度：</strong>通用文字识别（标准版）每月 1000 次免费。高精度版每月 50 次免费。<br/>获取密钥：<a href="https://console.bce.baidu.com/ai/#/ai/ocr/overview/index" target="_blank" style="color:var(--accent-color)">百度智能云 OCR 控制台</a></div>
+</div>
+</div>
+<!-- OCR.space 配置 -->
+<div id="ocr-ocrspace" class="ocr-provider-config" style="display:none">
+<div class="form-group">
+<label>API Key<div class="label-desc">OCR.space 免费注册获取</div></label>
+<input id="ocrspace-apikey" type="password" style="width:260px" placeholder="OCR.space API Key"/>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.ocrspace_lang">识别语言</span><div class="label-desc">chs = 简体中文</div></label>
+<select id="ocrspace-lang" style="width:200px">
+<option value="chs">简体中文 (chs)</option>
+<option value="cht">繁体中文 (cht)</option>
+<option value="eng">英文 (eng)</option>
+</select>
+</div>
+<div class="info-box">
+<i data-lucide="info" style="color:var(--accent-color)"></i>
+<div><strong>免费额度：</strong>每月 25,000 次免费识别，无需信用卡。<br/>注册获取 API Key：<a href="https://ocr.space/ocrapi" target="_blank" style="color:var(--accent-color)">OCR.space 官网</a></div>
+</div>
+</div>
+<div style="margin-top:16px;display:flex;align-items:center;gap:12px">
+<button class="btn-secondary" onclick="testOcrConnection()"><i class="icon-sm" data-lucide="wifi"></i> <span data-i18n="admin.btn.test_ocr">Test Connection</span></button>
+<div id="ocr-test-result" style="font-size:13px;font-weight:600"></div>
+</div>
+</div>
+<!-- 数据导入 -->
+<div class="card" id="import-card">
+<h2><i class="icon" data-lucide="arrow-down-to-line" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.import">Data Import</span></h2>
+<div style="display:flex;gap:10px;margin-bottom:15px;align-items:stretch">
+<a class="btn-secondary" href="/api/template" style="text-decoration:none;text-align:center;flex:1"><i class="icon-sm" data-lucide="file-down"></i> <span data-i18n="admin.btn.template">Template</span></a>
+<button class="btn-secondary" onclick="viewImportedData()" style="flex:1"><i class="icon-sm" data-lucide="list"></i> <span data-i18n="admin.btn.view_list">View List</span></button>
+<label class="btn-secondary" style="text-align:center;flex:1;cursor:pointer"><i class="icon-sm" data-lucide="folder-open"></i> <span data-i18n="admin.btn.select_file">Select File</span><input accept=".xlsx,.csv" id="import-file" onchange="handleImportFile(this)" style="display:none" type="file"/></label>
+</div>
+<!-- 拖拽区域 -->
+<div id="drop-zone" onclick="document.getElementById('import-file').click()" onmouseout="this.style.borderColor='var(--border-color)';this.style.backgroundColor='#F8FAFC'" onmouseover="this.style.borderColor='var(--accent-color)';this.style.backgroundColor='#F0FDFA'" style="border:2px dashed var(--border-color);background:#F8FAFC;border-radius:12px;padding:36px;text-align:center;color:var(--text-muted);transition:all 0.3s;cursor:pointer">
+<i class="icon" data-lucide="file-spreadsheet" style="width:36px;height:36px;margin-bottom:12px;opacity:0.6"></i><br/>
+<span data-i18n="admin.dz.main" style="font-weight:600">Drop Excel/CSV here, or click to select</span>
+<div data-i18n="admin.dz.sub" style="font-size:13px;margin-top:6px;opacity:0.8">Supports .xlsx .csv</div>
+</div>
+<!-- 解析结果 -->
+<div id="import-result" style="display:none;margin-top:15px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+<strong id="import-summary"></strong>
+<span id="import-mapping" style="font-size:12px;color:var(--text-muted)"></span>
+</div>
+<!-- 列映射 -->
+<div id="column-mapping" style="display:none;margin-bottom:12px;padding:12px;background:#FEF3C7;border-radius:8px">
+<div style="font-size:13px;font-weight:600;margin-bottom:8px">⚠️ 未自动识别到列，请手动选择：</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+<div style="flex:1;min-width:120px">
+<label style="font-size:12px">客户名称列</label>
+<select id="manual-name-col" style="width:100%"></select>
+</div>
+<div style="flex:1;min-width:120px">
+<label style="font-size:12px">合同总额列 (可选)</label>
+<select id="manual-info-col" style="width:100%"><option value="-1"><span data-i18n="msg.none">-- None --</span></option></select>
+</div>
+<div style="flex:1;min-width:120px">
+<label style="font-size:12px">欠款金额列 (可选)</label>
+<select id="manual-info2-col" style="width:100%"><option value="-1"><span data-i18n="msg.none">-- None --</span></option></select>
+</div>
+</div>
+<button class="btn-secondary" onclick="reMapColumns()" style="margin-top:12px;width:100%"><i class="icon-sm" data-lucide="refresh-ccw"></i> <span data-i18n="admin.btn.remap">Remap Columns</span></button>
+</div>
+<!-- 预览表格 -->
+<div style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;margin-bottom:12px;">
+<div style="overflow-x:auto;">
+<table id="preview-table" style="width:100%;border-collapse:collapse;font-size:13px">
+<thead id="preview-head"></thead>
+<tbody id="preview-body"></tbody>
+</table>
+</div>
+</div>
+<div style="display:flex;gap:12px;margin-top:16px">
+<button class="btn-secondary" onclick="cancelImport()" style="flex:1"><i class="icon-sm" data-lucide="x"></i> <span data-i18n="admin.btn.cancel">Cancel</span></button>
+<button class="btn-secondary btn-success" onclick="confirmImport()" style="flex:1"><i class="icon-sm" data-lucide="check"></i> <span data-i18n="admin.btn.confirm">Confirm Import</span></button>
+</div>
+</div>
+<!-- 数据查看区域 -->
+<div id="view-imported-data" style="display:none;margin-top:15px"></div>
+</div>
+<div class="two-column">
+<!-- 扫描设置 -->
+<div class="card">
+<h2><i class="icon" data-lucide="camera" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.camera">Scanning Settings</span></h2>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.interval">AI Scan Interval (ms)</span><div class="label-desc" data-i18n="admin.desc.interval">Recommended 1500ms+, AI needs inference time</div></label>
+<input id="scan-interval" max="5000" min="500" step="100" type="number"/>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.res">Camera Resolution</span></label>
+<select id="camera-res">
+<option value="640x480">VGA (640x480)</option>
+<option value="1280x720">HD (1280x720)</option>
+<option value="1920x1080">FHD (1920x1080)</option>
+</select>
+</div>
+<div class="info-box ai-info">
+<i data-lucide="sparkles"></i>
+<div><strong data-i18n="admin.info.ai_title">AI Mode Note:</strong> <span data-i18n="admin.info.ai_desc">GLM-OCR directly interprets raw images without traditional binarization. High perf required, interval 1500ms+ is recommended.</span></div>
+</div>
+</div>
+<!-- 匹配参数 -->
+<div class="card">
+<h2><i class="icon" data-lucide="target" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.ai">Matching Parameters</span></h2>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.ratio">Min Match Ratio</span><div class="label-desc" data-i18n="admin.desc.ratio">Require matching X% of target characters</div></label>
+<input id="match-ratio" max="0.9" min="0.3" step="0.1" type="range"/>
+<span class="range-value" id="match-ratio-val">60%</span>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.prefix">Require Prefix Match</span><div class="label-desc" data-i18n="admin.desc.prefix">Must include the starting part of target name</div></label>
+<label class="toggle-switch">
+<input checked="" id="require-prefix" type="checkbox"/>
+<span class="slider"></span>
+</label>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.length">Min Keyword Length</span><div class="label-desc" data-i18n="admin.desc.length">Minimum N chars to prevent misfires</div></label>
+<input id="min-keyword" max="8" min="3" step="1" type="number"/>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.distance">Levenshtein Tolerance</span><div class="label-desc" data-i18n="admin.desc.distance">Tolerance for added/missing/wrong chars</div></label>
+<input id="levenshtein" max="3" min="0" step="1" type="number"/>
+</div>
+<div class="info-box">
+<i data-lucide="lightbulb" style="color:#EAB308"></i>
+<div><strong data-i18n="admin.info.tip_title">Tip:</strong> <span data-i18n="admin.info.tip_desc">With AI, typos are rare. You can increase match ratio to 70%.</span></div>
+</div>
+</div>
+</div>
+<!-- ROI区域 -->
+<div class="card">
+<h2><i class="icon" data-lucide="crop" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.roi">Recognition ROI</span></h2>
+<div class="two-column" style="gap:24px;margin-bottom:16px;">
+<div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roix">ROI X</span></label>
+<input id="roi-x" max="50" min="0" step="1" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-x-val">10%</span>
+</div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roiy">ROI Y</span></label>
+<input id="roi-y" max="60" min="0" step="1" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-y-val">38%</span>
+</div>
+</div>
+<div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roiw">ROI Width</span></label>
+<input id="roi-w" max="100" min="20" step="5" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-w-val">80%</span>
+</div>
+<div class="form-group" style="margin-bottom:12px;">
+<label><span data-i18n="admin.lbl.roih">ROI Height</span></label>
+<input id="roi-h" max="80" min="10" step="5" style="width:140px;" type="range"/>
+<span class="range-value" id="roi-h-val">25%</span>
+</div>
+</div>
+</div>
+<div class="preview-canvas" id="roi-preview">
+<div class="roi-overlay" id="roi-rect"></div>
+</div>
+<div class="info-box">
+<i data-lucide="scan" style="color:var(--success-color)"></i>
+<div><strong data-i18n="admin.info.roi_title">Feature Note:</strong> <span data-i18n="admin.info.roi_desc">The green box is the actual cropped area sent to AI. Narrowing it speeds up OCR significantly.</span></div>
+</div>
+</div>
+<div class="two-column">
+<!-- 调试选项 -->
+<div class="card">
+<h2><i class="icon" data-lucide="settings-2" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.debug">Debug Options</span></h2>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.show_log">Show Debug Log</span></label>
+<label class="toggle-switch">
+<input id="show-debug" type="checkbox"/>
+<span class="slider"></span>
+</label>
+</div>
+<div class="form-group">
+<label><span data-i18n="admin.lbl.show_overlay">Show Overlay on Phone</span></label>
+<label class="toggle-switch">
+<input checked="" id="show-overlay" type="checkbox"/>
+<span class="slider"></span>
+</label>
+</div>
+</div>
+<!-- 关于 -->
+<div class="card">
+<h2><i class="icon" data-lucide="info" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.about">About System</span></h2>
+<div style="font-size:13px; line-height:1.8; color:var(--text-muted)">
+<p style="margin:4px 0"><strong data-i18n="admin.about.ocr">OCR Engine</strong>：<span data-i18n="admin.about.ocr_val">GLM-OCR 0.9B (Zhipu AI Vision Model)</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.engine">Inference Engine</strong>：<span data-i18n="admin.about.engine_val">Ollama (Apple Metal GPU Accel)</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.alg">Matching Algorithm</strong>：<span data-i18n="admin.about.alg_val">Keyword / Prefix / Levenshtein Distance</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.db">Built-in Data</strong>：<span id="target-count" style="font-weight:700;color:var(--accent-color)">--</span> <span data-i18n="admin.about.db_val">targets tracked</span></p>
+</div>
+</div>
+</div>
+<button class="btn-primary" onclick="saveConfig()"><i class="icon-sm" data-lucide="save"></i> <span data-i18n="admin.btn.save">Save &amp; Apply Config</span></button>
+<div id="status-msg"></div>
+</div>
+<script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        let currentConfig = {};
+
+        async function openScanner() {
+            showStatus('📱 正在手机上打开扫描器...', 'var(--accent-color)');
+            try {
+                const res = await fetch('/api/open-on-phone', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showStatus('✅ 已在手机上打开扫描器', 'green');
+                    setTimeout(() => showStatus('', ''), 3000);
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (e) {
+                showStatus('❌ 打开失败: ' + e.message, 'red');
+            }
+        }
+
+        function openAdmin() { location.reload(); }
+
+        async function adminReset() {
+            if (!confirm('确定要重置扫描器吗？这将断开所有手机连接。')) return;
+            showStatus('🔄 正在重置扫描器...', 'var(--accent-color)');
+            try {
+                const res = await fetch('/api/admin-reset', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showStatus('✅ 已重置，断开了 ' + (data.disconnected || 0) + ' 个连接', 'green');
+                    setTimeout(() => showStatus('', ''), 3000);
+                } else {
+                    throw new Error('重置失败');
+                }
+            } catch (e) {
+                showStatus('❌ 重置失败: ' + e.message, 'red');
+            }
+        }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config?t=' + Date.now());
+                currentConfig = await res.json();
+                renderConfig();
+                updateStats();
+
+                // Load target count
+                const compRes = await fetch('/api/targets?t=' + Date.now());
+                const targets = await compRes.json();
+                document.getElementById('target-count').textContent = targets.length;
+            } catch (e) {
+                console.error('Failed to load config', e);
+                showStatus('⚠️ 加载配置失败', 'red');
+            }
+        }
+
+        function renderConfig() {
+            // Scan
+            document.getElementById('scan-interval').value = currentConfig.scan.interval;
+            const resKey = `${currentConfig.scan.width}x${currentConfig.scan.height}`;
+            document.getElementById('camera-res').value = resKey;
+
+            // ROI
+            document.getElementById('roi-x').value = currentConfig.roi.x;
+            document.getElementById('roi-y').value = currentConfig.roi.y;
+            document.getElementById('roi-w').value = currentConfig.roi.width;
+            document.getElementById('roi-h').value = currentConfig.roi.height;
+            updateRoiPreview();
+
+            // Matching
+            document.getElementById('match-ratio').value = currentConfig.matching.minMatchRatio || 0.6;
+            document.getElementById('match-ratio-val').textContent = Math.round((currentConfig.matching.minMatchRatio || 0.6) * 100) + '%';
+            document.getElementById('require-prefix').checked = currentConfig.matching.requirePrefix !== false;
+            document.getElementById('min-keyword').value = currentConfig.matching.minKeywordLength || 5;
+            document.getElementById('levenshtein').value = currentConfig.matching.levenshteinDistance;
+
+            // UI
+            document.getElementById('show-debug').checked = currentConfig.ui.showDebug;
+            document.getElementById('show-overlay').checked = currentConfig.ui.showOverlay;
+
+            // OCR Engine
+            const ocr = currentConfig.ocr || {};
+            const provider = ocr.provider || 'ollama';
+            document.getElementById('ocr-provider').value = provider;
+            const radioBtn = document.querySelector(`input[name="ocr-engine"][value="${provider}"]`);
+            if (radioBtn) radioBtn.checked = true;
+            const ollama = ocr.ollama || {};
+            document.getElementById('ollama-model').value = ollama.model || 'glm-ocr';
+            document.getElementById('ollama-keepalive').value = ollama.keepAlive || '10m';
+            const baidu = ocr.baidu || {};
+            document.getElementById('baidu-apikey').value = baidu.apiKey || '';
+            document.getElementById('baidu-secretkey').value = baidu.secretKey || '';
+            const ocrspace = ocr.ocrspace || {};
+            document.getElementById('ocrspace-apikey').value = ocrspace.apiKey || '';
+            document.getElementById('ocrspace-lang').value = ocrspace.language || 'chs';
+            switchOcrProvider();
+        }
+
+        function switchOcrProvider() {
+            const selected = document.querySelector('input[name="ocr-engine"]:checked').value;
+            document.getElementById('ocr-provider').value = selected;
+            document.querySelectorAll('.ocr-provider-config').forEach(el => el.style.display = 'none');
+            document.getElementById('ocr-' + selected).style.display = 'block';
+            document.querySelectorAll('.engine-tab').forEach(tab => tab.classList.remove('active'));
+            document.getElementById('engine-tab-' + selected).classList.add('active');
+        }
+
+        async function testOcrConnection() {
+            const resultEl = document.getElementById('ocr-test-result');
+            resultEl.textContent = '⏳ 保存并测试中...';
+            resultEl.style.color = 'var(--text-muted)';
+            try {
+                // 先保存当前 OCR 配置
+                const ocrCfg = {
+                    provider: document.getElementById('ocr-provider').value,
+                    ollama: {
+                        baseUrl: (currentConfig.ocr && currentConfig.ocr.ollama && currentConfig.ocr.ollama.baseUrl) || 'http://localhost:11434',
+                        model: document.getElementById('ollama-model').value || 'glm-ocr',
+                        keepAlive: document.getElementById('ollama-keepalive').value || '10m'
+                    },
+                    baidu: {
+                        apiKey: document.getElementById('baidu-apikey').value,
+                        secretKey: document.getElementById('baidu-secretkey').value
+                    },
+                    ocrspace: {
+                        apiKey: document.getElementById('ocrspace-apikey').value,
+                        language: document.getElementById('ocrspace-lang').value
+                    }
+                };
+                currentConfig.ocr = ocrCfg;
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentConfig)
+                });
+
+                // 再测试连接
+                const res = await fetch('/api/ocr-test', { method: 'POST' });
+                const data = await res.json();
+                if (data.ok) {
+                    resultEl.textContent = '✅ ' + data.message;
+                    resultEl.style.color = 'var(--success-color)';
+                } else {
+                    resultEl.textContent = '❌ ' + (data.message || data.detail || '连接失败');
+                    resultEl.style.color = 'var(--danger-color)';
+                }
+            } catch (e) {
+                resultEl.textContent = '❌ 请求失败: ' + e.message;
+                resultEl.style.color = 'var(--danger-color)';
+            }
+        }
+
+        function updateRoiPreview() {
+            const x = document.getElementById('roi-x').value;
+            const y = document.getElementById('roi-y').value;
+            const w = document.getElementById('roi-w').value;
+            const h = document.getElementById('roi-h').value;
+
+            document.getElementById('roi-x-val').innerText = x + '%';
+            document.getElementById('roi-y-val').innerText = y + '%';
+            document.getElementById('roi-w-val').innerText = w + '%';
+            document.getElementById('roi-h-val').innerText = h + '%';
+
+            const rect = document.getElementById('roi-rect');
+            rect.style.left = x + '%';
+            rect.style.top = y + '%';
+            rect.style.width = w + '%';
+            rect.style.height = h + '%';
+        }
+
+        function updateMatchRatioLabel() {
+            const val = document.getElementById('match-ratio').value;
+            document.getElementById('match-ratio-val').textContent = Math.round(val * 100) + '%';
+        }
+
+        function updateStats() {
+            const interval = document.getElementById('scan-interval').value;
+            const fps = (1000 / interval).toFixed(1);
+            document.getElementById('scan-fps').textContent = fps + '/s';
+        }
+
+        ['roi-x', 'roi-y', 'roi-w', 'roi-h'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateRoiPreview);
+        });
+        document.getElementById('scan-interval').addEventListener('input', updateStats);
+        document.getElementById('match-ratio').addEventListener('input', updateMatchRatioLabel);
+
+        function showStatus(msg, color) {
+            const status = document.getElementById('status-msg');
+            status.textContent = msg;
+            status.style.color = color;
+            status.style.background = color === 'green' ? '#DCFCE7' : color === 'red' ? '#FFE4E6' : '#FEF3C7';
+        }
+
+        async function saveConfig() {
+            showStatus('💾 保存中...', '#666');
+
+            const newConfig = {
+                scan: {
+                    interval: parseInt(document.getElementById('scan-interval').value),
+                    width: parseInt(document.getElementById('camera-res').value.split('x')[0]),
+                    height: parseInt(document.getElementById('camera-res').value.split('x')[1]),
+                    frameRate: 30
+                },
+                roi: {
+                    x: parseFloat(document.getElementById('roi-x').value),
+                    y: parseFloat(document.getElementById('roi-y').value),
+                    width: parseFloat(document.getElementById('roi-w').value),
+                    height: parseFloat(document.getElementById('roi-h').value)
+                },
+                matching: {
+                    minConfidence: 0,
+                    levenshteinDistance: parseInt(document.getElementById('levenshtein').value),
+                    minMatchRatio: parseFloat(document.getElementById('match-ratio').value),
+                    requirePrefix: document.getElementById('require-prefix').checked,
+                    minKeywordLength: parseInt(document.getElementById('min-keyword').value)
+                },
+                ui: {
+                    showDebug: document.getElementById('show-debug').checked,
+                    showOverlay: document.getElementById('show-overlay').checked
+                },
+                ocr: {
+                    provider: document.getElementById('ocr-provider').value,
+                    ollama: {
+                        baseUrl: (currentConfig.ocr && currentConfig.ocr.ollama && currentConfig.ocr.ollama.baseUrl) || 'http://localhost:11434',
+                        model: document.getElementById('ollama-model').value || 'glm-ocr',
+                        keepAlive: document.getElementById('ollama-keepalive').value || '10m'
+                    },
+                    baidu: {
+                        apiKey: document.getElementById('baidu-apikey').value,
+                        secretKey: document.getElementById('baidu-secretkey').value
+                    },
+                    ocrspace: {
+                        apiKey: document.getElementById('ocrspace-apikey').value,
+                        language: document.getElementById('ocrspace-lang').value
+                    }
+                }
+            };
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newConfig)
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showStatus(t('msg.save_success'), 'green');
+                    currentConfig = newConfig;
+                } else {
+                    throw new Error(data.error || 'Save failed');
+                }
+            } catch (e) {
+                showStatus('❌ 保存失败: ' + e.message, 'red');
+            }
+        }
+
+        // === 数据导入 ===
+        let importData = null; // 暂存解析结果
+
+        // 拖拽支持
+        const dropZone = document.getElementById('drop-zone');
+        ['dragenter','dragover'].forEach(evt => {
+            dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent-color)'; dropZone.style.background = '#F0FDFA'; });
+        });
+        ['dragleave','drop'].forEach(evt => {
+            dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.style.borderColor = '#d2d2d7'; dropZone.style.background = 'transparent'; });
+        });
+        dropZone.addEventListener('drop', e => {
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+
+        function handleImportFile(input) {
+            if (input.files[0]) processFile(input.files[0]);
+        }
+
+        async function processFile(file) {
+            console.log('[Upload] File:', file.name, 'Size:', file.size, 'Type:', file.type);
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (ext === 'xls') {
+                showStatus('❌ 不支持 .xls 格式，请在 Excel 中另存为 .xlsx 后再上传', 'red');
+                return;
+            }
+            if (!['xlsx', 'csv'].includes(ext)) {
+                showStatus('❌ 不支持的文件格式，请使用 .xlsx 或 .csv', 'red');
+                return;
+            }
+
+            showStatus('📊 正在解析...', 'var(--accent-color)');
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                console.log('[Upload] FileReader loaded, data length:', e.target.result.length);
+                try {
+                    const res = await fetch('/api/upload-excel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fileData: e.target.result, fileName: file.name })
+                    });
+                    console.log('[Upload] Response status:', res.status);
+                    const data = await res.json();
+                    console.log('[Upload] Response data:', data);
+                    if (data.error) throw new Error(data.error);
+
+                    importData = data;
+                    renderImportResult(data);
+                    showStatus(t('msg.parse_ok'), 'green');
+                } catch (err) {
+                    console.error('[Upload] Error:', err);
+                    showStatus('❌ 解析失败: ' + err.message, 'red');
+                }
+            };
+            reader.onerror = (err) => {
+                console.error('[Upload] FileReader error:', err);
+                showStatus('❌ 文件读取失败', 'red');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderImportResult(data) {
+            document.getElementById('import-result').style.display = 'block';
+            document.getElementById('drop-zone').style.display = 'none';
+            document.getElementById('import-summary').textContent = `共 ${data.totalRows} 条数据`;
+
+            const mappingEl = document.getElementById('import-mapping');
+            const columnMapEl = document.getElementById('column-mapping');
+            const nameSelect = document.getElementById('manual-name-col');
+            const infoSelect = document.getElementById('manual-info-col');
+            const info2Select = document.getElementById('manual-info2-col');
+
+            // 永远重新填充下拉框选项
+            nameSelect.innerHTML = '<option value="-1">-- 请选择 --</option>';
+            infoSelect.innerHTML = '<option value="-1"><span data-i18n="msg.none">-- None --</span></option>';
+            info2Select.innerHTML = '<option value="-1"><span data-i18n="msg.none">-- None --</span></option>';
+            data.headers.forEach((h, i) => {
+                nameSelect.innerHTML += `<option value="${i}">${h}</option>`;
+                infoSelect.innerHTML += `<option value="${i}">${h}</option>`;
+                info2Select.innerHTML += `<option value="${i}">${h}</option>`;
+            });
+
+            // 回填已识别的结果
+            if (data.nameCol >= 0) nameSelect.value = data.nameCol;
+            if (data.infoCol >= 0) infoSelect.value = data.infoCol;
+            if (data.infoCol2 >= 0) info2Select.value = data.infoCol2;
+
+            // 动态表头（使用用户上传表格的原始表头）
+            const nameHeader = data.nameCol >= 0 ? data.headers[data.nameCol] : '客户名称';
+            const infoHeader = data.infoCol >= 0 ? data.headers[data.infoCol] : '合同总额';
+            const info2Header = data.infoCol2 >= 0 ? data.headers[data.infoCol2] : '欠款金额';
+            document.getElementById('preview-head').innerHTML = `
+                <tr style="background:#F8FAFC;border-bottom:1px solid var(--border-color)">
+                    <th style="padding:10px 12px;text-align:left;font-weight:600">序号</th>
+                    <th style="padding:10px 12px;text-align:left;font-weight:600">${escapeHtml(nameHeader)}</th>
+                    <th style="padding:10px 12px;text-align:left;font-weight:600">${escapeHtml(infoHeader)}</th>
+                    <th style="padding:10px 12px;text-align:left;font-weight:600">${escapeHtml(info2Header)}</th>
+                </tr>`;
+
+            // 映射提示语
+            const parts = [];
+            if (data.nameCol >= 0) parts.push(`"${data.headers[data.nameCol]}" → 主列`);
+            if (data.infoCol >= 0) parts.push(`"${data.headers[data.infoCol]}" → 附加信息1`);
+            if (data.infoCol2 >= 0) parts.push(`"${data.headers[data.infoCol2]}" → 附加信息2`);
+
+            if (data.nameCol >= 0 && parts.length >= 2) {
+                mappingEl.textContent = '✅ 自动映射: ' + parts.join(', ');
+                mappingEl.style.color = 'var(--success-color)';
+                columnMapEl.style.display = 'block';
+            } else if (data.nameCol >= 0) {
+                mappingEl.textContent = `⚠️ 部分映射: "${data.headers[data.nameCol]}" → 主列。其他列请手动选择。`;
+                mappingEl.style.color = 'var(--text-color)';
+                columnMapEl.style.display = 'block';
+            } else {
+                mappingEl.textContent = '❌ 未能自动识别主表头列，请手动选择对应的列';
+                mappingEl.style.color = 'var(--danger-color)';
+                columnMapEl.style.display = 'block';
+            }
+
+            // 渲染预览
+            const tbody = document.getElementById('preview-body');
+            tbody.innerHTML = data.preview.map((item, i) =>
+                `<tr style="border-bottom:1px solid #eee">
+                    <td style="padding:6px 8px;color:var(--text-muted)">${i+1}</td>
+                    <td style="padding:6px 8px">${escapeHtml(item.name) || '<span style=color:#ccc><span data-i18n="msg.empty">Empty</span></span>'}</td>
+                    <td style="padding:6px 8px;color:#666">${escapeHtml(item.displayInfo) || '-'}</td>
+                    <td style="padding:6px 8px;color:#666">${escapeHtml(item.displayInfo2) || '-'}</td>
+                </tr>`
+            ).join('');
+        }
+
+        function reMapColumns() {
+            const nameCol = parseInt(document.getElementById('manual-name-col').value);
+            const infoCol = parseInt(document.getElementById('manual-info-col').value);
+            const infoCol2 = parseInt(document.getElementById('manual-info2-col').value);
+            importData.nameCol = nameCol;
+            importData.infoCol = infoCol;
+            importData.infoCol2 = infoCol2;
+
+            // 重新生成预览
+            importData.preview = importData.allRows.slice(0, 5).map(row => ({
+                name: nameCol >= 0 && nameCol < row.length ? row[nameCol] : '',
+                displayInfo: infoCol >= 0 && infoCol < row.length ? row[infoCol] : '',
+                displayInfo2: infoCol2 >= 0 && infoCol2 < row.length ? row[infoCol2] : ''
+            }));
+            renderImportResult(importData);
+            document.getElementById('column-mapping').style.display = 'none';
+            const parts = [`"${importData.headers[nameCol]}" → 主列`];
+            if (infoCol >= 0) parts.push(`"${importData.headers[infoCol]}" → 附加信息1`);
+            if (infoCol2 >= 0) parts.push(`"${importData.headers[infoCol2]}" → 附加信息2`);
+            document.getElementById('import-mapping').textContent = `手动映射: ${parts.join(', ')}`;
+        }
+
+        async function confirmImport() {
+            if (!importData || importData.nameCol < 0) {
+                showStatus('⚠️ 请先选择客户名称列', 'red');
+                return;
+            }
+
+            showStatus('💾 正在导入...', 'var(--accent-color)');
+
+            try {
+                const res = await fetch('/api/import-confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nameCol: importData.nameCol,
+                        infoCol: importData.infoCol,
+                        infoCol2: importData.infoCol2,
+                        headers: importData.headers,
+                        allRows: importData.allRows
+                    })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                showStatus(`✅ 成功导入 ${data.count} 条记录！`, 'green');
+                cancelImport();
+
+                // 刷新目标数量
+                document.getElementById('target-count').textContent = data.count;
+            } catch (err) {
+                showStatus('❌ 导入失败: ' + err.message, 'red');
+            }
+        }
+
+        function cancelImport() {
+            document.getElementById('import-result').style.display = 'none';
+            document.getElementById('drop-zone').style.display = 'block';
+            
+            // 隐藏查看区域
+            const viewDiv = document.getElementById('view-imported-data');
+            if (viewDiv) viewDiv.style.display = 'none';
+            
+            importData = null;
+        }
+
+        // === HTML 转义（防止用户数据破坏页面结构） ===
+        function escapeHtml(text) {
+            if (text == null) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // === 查看已导入数据（含增删改） ===
+        let viewTargets = [];
+
+        let currentHeaders = { name: '客户名称', displayInfo: '合同总额', displayInfo2: '欠款金额' };
+
+        async function viewImportedData() {
+            try {
+                showStatus('正在加载数据...', '#666');
+                const [targetsRes, headersRes] = await Promise.all([
+                    fetch('/api/targets?t=' + Date.now()),
+                    fetch('/api/target-headers?t=' + Date.now())
+                ]);
+                viewTargets = await targetsRes.json();
+                currentHeaders = await headersRes.json();
+                renderTargetList();
+                showStatus('', '');
+            } catch (e) {
+                showStatus('❌ 加载失败: ' + e.message, 'red');
+            }
+        }
+
+        function renderTargetList() {
+            const targets = viewTargets;
+            const h = currentHeaders;
+            let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+            html += '<div style="font-weight:600">当前共有 <span style="color:var(--accent-color)">' + targets.length + '</span> 条记录</div>';
+            html += '<div style="display:flex;gap:8px">';
+            html += '<button id="clear-all-btn" class="btn-secondary" onclick="confirmClearAll()" style="font-size:13px;padding:6px 14px;background:#FEF2F2;color:#DC2626;border-color:#FECACA"><i class="icon-sm" data-lucide="trash-2"></i> 清空名单</button>';
+            html += '<button class="btn-secondary btn-success" onclick="showAddForm()" style="font-size:13px;padding:6px 14px"><i class="icon-sm" data-lucide="plus"></i> 添加</button>';
+            html += '</div></div>';
+
+            // 添加表单（默认隐藏）
+            html += '<div id="add-target-form" style="display:none;margin-bottom:12px;padding:14px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px">';
+            html += '<div style="font-weight:600;margin-bottom:10px;font-size:13px">添加新记录</div>';
+            html += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+            html += '<input id="add-name" type="text" placeholder="' + escapeHtml(h.name) + '" style="flex:2;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;min-width:150px"/>';
+            html += '<input id="add-info" type="text" placeholder="' + escapeHtml(h.displayInfo) + '（可选）" style="flex:2;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;min-width:150px"/>';
+            html += '<input id="add-info2" type="text" placeholder="' + escapeHtml(h.displayInfo2) + '（可选）" style="flex:2;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;min-width:150px"/>';
+            html += '<button class="btn-secondary btn-success" onclick="addTarget()" style="font-size:13px;padding:8px 16px;white-space:nowrap">确认添加</button>';
+            html += '<button class="btn-secondary" onclick="hideAddForm()" style="font-size:13px;padding:8px 12px">取消</button>';
+            html += '</div></div>';
+
+            // 列表
+            html += '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border-color);border-radius:10px">';
+            html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+            html += '<thead style="position:sticky;top:0;background:#F8FAFC;z-index:1"><tr style="border-bottom:2px solid var(--border-color)">';
+            html += '<th style="padding:10px 12px;text-align:left;width:40px">序号</th>';
+            html += '<th style="padding:10px 12px;text-align:left">' + escapeHtml(h.name) + '</th>';
+            html += '<th style="padding:10px 12px;text-align:left">' + escapeHtml(h.displayInfo) + '</th>';
+            html += '<th style="padding:10px 12px;text-align:left">' + escapeHtml(h.displayInfo2) + '</th>';
+            html += '<th style="padding:10px 12px;text-align:center;width:120px">操作</th>';
+            html += '</tr></thead><tbody>';
+
+            targets.forEach((item, i) => {
+                html += `<tr id="row-${i}" style="border-bottom:1px solid #f1f5f9;transition:background 0.15s" onmouseenter="this.style.background='#F8FAFC'" onmouseleave="this.style.background=''">
+                    <td style="padding:8px 12px;color:var(--text-muted)">${i + 1}</td>
+                    <td style="padding:8px 12px;font-weight:500">${escapeHtml(item.name)}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted)">${escapeHtml(item.displayInfo) || '-'}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted)">${escapeHtml(item.displayInfo2) || '-'}</td>
+                    <td style="padding:8px 12px;text-align:center">
+                        <button onclick="showEditForm(${i})" style="background:none;border:none;cursor:pointer;color:var(--accent-color);font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px" onmouseenter="this.style.background='#F0FDFA'" onmouseleave="this.style.background=''">编辑</button>
+                        <button id="del-btn-${i}" onclick="confirmDelete(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger-color);font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px" onmouseenter="this.style.background='#FEF2F2'" onmouseleave="this.style.background=''">删除</button>
+                    </td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            html += '<div style="margin-top:12px;display:flex;justify-content:flex-end"><button class="btn-secondary" onclick="closeTargetList()">关闭</button></div>';
+
+            // 切换UI
+            document.getElementById('drop-zone').style.display = 'none';
+            document.getElementById('import-result').style.display = 'none';
+            const viewDiv = document.getElementById('view-imported-data');
+            viewDiv.innerHTML = html;
+            viewDiv.style.display = 'block';
+
+            // 刷新 Lucide 图标
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function showAddForm() {
+            document.getElementById('add-target-form').style.display = 'block';
+            document.getElementById('add-name').focus();
+        }
+        function hideAddForm() {
+            document.getElementById('add-target-form').style.display = 'none';
+            document.getElementById('add-name').value = '';
+            document.getElementById('add-info').value = '';
+            document.getElementById('add-info2').value = '';
+        }
+
+        async function addTarget() {
+            const name = document.getElementById('add-name').value.trim();
+            const info = document.getElementById('add-info').value.trim();
+            const info2 = document.getElementById('add-info2').value.trim();
+            if (!name) { showStatus('⚠️ 名称不能为空', 'red'); return; }
+
+            try {
+                const res = await fetch('/api/targets/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, displayInfo: info, displayInfo2: info2 })
+                });
+                const data = await res.json();
+                if (data.error) { showStatus('❌ ' + data.error, 'red'); return; }
+                viewTargets.push({ name, displayInfo: info, displayInfo2: info2 });
+                document.getElementById('target-count').textContent = viewTargets.length;
+                renderTargetList();
+                showStatus('✅ 已添加: ' + name, 'green');
+            } catch (e) {
+                showStatus('❌ 添加失败: ' + e.message, 'red');
+            }
+        }
+
+        function showEditForm(index) {
+            const row = document.getElementById('row-' + index);
+            if (!row) return;
+            const item = viewTargets[index];
+            const cells = row.querySelectorAll('td');
+
+            cells[1].innerHTML = `<input id="edit-name-${index}" type="text" value="${escapeHtml(item.name)}" style="width:100%;padding:4px 8px;border:1px solid var(--accent-color);border-radius:6px;font-size:13px"/>`;
+            cells[2].innerHTML = `<input id="edit-info-${index}" type="text" value="${escapeHtml(item.displayInfo || '')}" style="width:100%;padding:4px 8px;border:1px solid var(--accent-color);border-radius:6px;font-size:13px"/>`;
+            cells[3].innerHTML = `<input id="edit-info2-${index}" type="text" value="${escapeHtml(item.displayInfo2 || '')}" style="width:100%;padding:4px 8px;border:1px solid var(--accent-color);border-radius:6px;font-size:13px"/>`;
+            cells[4].innerHTML = `
+                <button onclick="saveEdit(${index})" style="background:none;border:none;cursor:pointer;color:var(--success-color);font-size:12px;font-weight:600;padding:4px 8px">保存</button>
+                <button onclick="renderTargetList()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:12px;font-weight:600;padding:4px 8px">取消</button>`;
+            document.getElementById('edit-name-' + index).focus();
+        }
+
+        async function saveEdit(index) {
+            const name = document.getElementById('edit-name-' + index).value.trim();
+            const info = document.getElementById('edit-info-' + index).value.trim();
+            const info2 = document.getElementById('edit-info2-' + index).value.trim();
+            if (!name) { showStatus('⚠️ 名称不能为空', 'red'); return; }
+
+            try {
+                const res = await fetch('/api/targets/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index, name, displayInfo: info, displayInfo2: info2 })
+                });
+                const data = await res.json();
+                if (data.error) { showStatus('❌ ' + data.error, 'red'); return; }
+                viewTargets[index] = { name, displayInfo: info, displayInfo2: info2 };
+                renderTargetList();
+                showStatus('✅ 已更新: ' + name, 'green');
+            } catch (e) {
+                showStatus('❌ 更新失败: ' + e.message, 'red');
+            }
+        }
+
+        function confirmDelete(index) {
+            const btn = document.getElementById('del-btn-' + index);
+            if (!btn) return;
+            btn.textContent = '确认?';
+            btn.style.background = '#FEE2E2';
+            btn.style.color = '#DC2626';
+            btn.onclick = function() { doDelete(index); };
+            setTimeout(function() {
+                if (btn) {
+                    btn.textContent = '删除';
+                    btn.style.background = '';
+                    btn.style.color = 'var(--danger-color)';
+                    btn.onclick = function() { confirmDelete(index); };
+                }
+            }, 3000);
+        }
+
+        async function doDelete(index) {
+            const name = viewTargets[index].name;
+            try {
+                const res = await fetch('/api/targets/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index, name: '', displayInfo: '', displayInfo2: '' })
+                });
+                const data = await res.json();
+                if (data.error) { showStatus('❌ ' + data.error, 'red'); return; }
+                viewTargets.splice(index, 1);
+                document.getElementById('target-count').textContent = viewTargets.length;
+                renderTargetList();
+                showStatus('✅ 已删除: ' + name, 'green');
+            } catch (e) {
+                showStatus('❌ 删除失败: ' + e.message, 'red');
+            }
+        }
+
+        function confirmClearAll() {
+            const btn = document.getElementById('clear-all-btn');
+            if (!btn) return;
+            btn.innerHTML = '确认清空?';
+            btn.style.background = '#FEE2E2';
+            btn.style.color = '#991B1B';
+            btn.style.borderColor = '#EF4444';
+            btn.onclick = function() { doClearAll(); };
+            setTimeout(function() {
+                if (btn) {
+                    btn.innerHTML = '<i class="icon-sm" data-lucide="trash-2"></i> 清空名单';
+                    btn.style.background = '#FEF2F2';
+                    btn.style.color = '#DC2626';
+                    btn.style.borderColor = '#FECACA';
+                    btn.onclick = function() { confirmClearAll(); };
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            }, 3000);
+        }
+
+        async function doClearAll() {
+            if (viewTargets.length === 0) {
+                showStatus('⚠️ 名单已经是空的', 'red');
+                return;
+            }
+            try {
+                const res = await fetch('/api/targets/clear', { method: 'POST' });
+                const data = await res.json();
+                if (data.error) { showStatus('❌ ' + data.error, 'red'); return; }
+                viewTargets = [];
+                document.getElementById('target-count').textContent = '0';
+                renderTargetList();
+                showStatus('✅ 名单已清空，旧数据已备份', 'green');
+            } catch (e) {
+                showStatus('❌ 清空失败: ' + e.message, 'red');
+            }
+        }
+
+        function closeTargetList() {
+            document.getElementById('view-imported-data').style.display = 'none';
+            document.getElementById('drop-zone').style.display = 'block';
+        }
+
+        // === 模型加载状态检查 ===
+        let _modelLoading = false;
+        let _loadProgress = 0;
+        let _loadTimer = null;
+
+        async function checkModelStatus() {
+            try {
+                const res = await fetch('/api/model-status?t=' + Date.now());
+                const data = await res.json();
+                const statusEl = document.getElementById('model-status');
+                const engineEl = document.getElementById('ai-engine');
+
+                const providerNames = {ollama: 'GLM-OCR', baidu: '百度 OCR', ocrspace: 'OCR.space', openai: 'OpenAI'};
+                engineEl.textContent = providerNames[data.provider] || data.provider;
+
+                if (data.provider === 'ollama') {
+                    if (data.ready) {
+                        _modelLoading = false;
+                        _loadProgress = 100;
+                        if (_loadTimer) { clearInterval(_loadTimer); _loadTimer = null; }
+                        statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;box-shadow:0 0 6px rgba(16,185,129,0.5)"></span> <span style="color:#10b981;font-weight:600">' + t('admin.stat.ready') + '</span>';
+                    } else if (!_modelLoading) {
+                        // 未加载，显示加载按钮
+                        statusEl.innerHTML = '<button onclick="triggerModelLoad()" style="background:var(--accent-color);color:#fff;border:none;border-radius:6px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer">点击加载模型</button>';
+                    }
+                } else {
+                    if (data.ready) {
+                        statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;box-shadow:0 0 6px rgba(16,185,129,0.5)"></span> <span style="color:#10b981;font-weight:600">' + t('admin.stat.ready') + '</span>';
+                    } else {
+                        statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#f59e0b;border-radius:50%;box-shadow:0 0 6px rgba(245,158,11,0.5)"></span> <span style="color:#f59e0b">' + (data.message || t('admin.stat.standby')) + '</span>';
+                    }
+                }
+            } catch (e) {
+                // 静默失败
+            }
+        }
+
+        async function triggerModelLoad() {
+            const statusEl = document.getElementById('model-status');
+            statusEl.innerHTML = '<div style="width:100%;max-width:180px;margin:0 auto"><div style="background:#E2E8F0;border-radius:6px;height:16px;overflow:hidden;position:relative"><div id="load-bar" style="background:linear-gradient(90deg,var(--accent-color),var(--ai-color));height:100%;width:0%;border-radius:6px;transition:width 1s ease"></div></div><div id="load-text" style="font-size:11px;color:var(--text-muted);margin-top:4px;text-align:center">正在加载模型到显存...</div></div>';
+
+            _modelLoading = true;
+            _loadProgress = 0;
+
+            // 模拟进度：先快后慢，真实加载完成后会被 checkModelStatus 覆盖
+            _loadTimer = setInterval(function() {
+                if (_loadProgress < 85) {
+                    _loadProgress += Math.random() * 8 + 2;
+                    if (_loadProgress > 85) _loadProgress = 85;
+                    updateLoadBar();
+                }
+            }, 1500);
+
+            try {
+                const res = await fetch('/api/model-load', { method: 'POST' });
+                const data = await res.json();
+                if (data.already_loaded) {
+                    _loadProgress = 100;
+                    updateLoadBar();
+                    checkModelStatus();
+                }
+            } catch (e) {
+                if (_loadTimer) { clearInterval(_loadTimer); _loadTimer = null; }
+                statusEl.innerHTML = '<span style="color:var(--danger-color);font-size:11px">加载失败</span>';
+                _modelLoading = false;
+            }
+        }
+
+        function updateLoadBar() {
+            const bar = document.getElementById('load-bar');
+            const text = document.getElementById('load-text');
+            if (!bar) return;
+            bar.style.width = Math.round(_loadProgress) + '%';
+            if (_loadProgress >= 100) {
+                bar.style.background = 'var(--success-color)';
+                if (text) text.textContent = '加载完成!';
+            } else if (_loadProgress > 60) {
+                if (text) text.textContent = '模型即将就绪...';
+            } else {
+                if (text) text.textContent = '正在加载模型到显存... ' + Math.round(_loadProgress) + '%';
+            }
+        }
+
+        // === ADB 无线调试 ===
+        function updateAdbLed(color, shadow) {
+            const led = document.getElementById('adb-led');
+            if (!led) return;
+            led.style.background = color;
+            led.style.boxShadow = shadow ? '0 0 8px ' + shadow : 'none';
+        }
+
+        async function checkAdbStatus() {
+            try {
+                const res = await fetch('/api/adb-wifi-status?t=' + Date.now());
+                const data = await res.json();
+                const el = document.getElementById('adb-status-display');
+                if (data.connected) {
+                    const modeText = data.mode === 'usb' ? 'USB 连接' : 'WiFi 连接';
+                    const color = data.mode === 'wifi' ? '#10b981' : '#0ea5e9';
+                    const shadow = data.mode === 'wifi' ? 'rgba(16,185,129,0.6)' : 'rgba(14,165,233,0.5)';
+                    updateAdbLed(color, shadow);
+                    el.innerHTML = '<span style="color:' + color + ';font-weight:600">●</span> 设备已连接（' + modeText + '）' + (data.wifi_ip ? ' · 手机IP: ' + data.wifi_ip : '');
+                } else {
+                    updateAdbLed('#94a3b8', 'rgba(148,163,184,0.3)');
+                    el.innerHTML = '<span style="color:#94a3b8">●</span> 未检测到 ADB 设备，请先用 USB 线连接手机';
+                }
+            } catch (e) {
+                updateAdbLed('#ef4444', 'rgba(239,68,68,0.4)');
+                document.getElementById('adb-status-display').innerHTML = '<span style="color:#ef4444">●</span> ADB 状态检测失败';
+            }
+        }
+
+        async function adbWifiStart() {
+            const btn = document.getElementById('btn-adb-start');
+            btn.textContent = '开启中...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/adb-wifi-start', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert('✅ ' + data.message + '\n\n下一步：拔掉 USB 数据线，然后点击「连接 WiFi ADB」');
+                } else {
+                    alert('❌ 开启失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('❌ 请求失败: ' + e.message);
+            } finally {
+                btn.textContent = '开启';
+                btn.disabled = false;
+            }
+        }
+
+        async function adbWifiConnect() {
+            const btn = document.getElementById('btn-adb-connect');
+            btn.textContent = '连接中...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/adb-wifi-connect', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('adb-result').style.display = 'block';
+                    checkAdbStatus();
+                } else {
+                    alert('❌ 连接失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('❌ 请求失败: ' + e.message);
+            } finally {
+                btn.textContent = '连接';
+                btn.disabled = false;
+            }
+        }
+
+        // 启动时检查一次
+        checkAdbStatus();
+
+        // 启动时检查一次，之后每 10 秒轮询
+        checkModelStatus();
+        setInterval(checkModelStatus, 10000);
+
+        loadConfig();
+    </script>
+</body>
+</html>

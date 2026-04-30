@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Sensitive Data
+targets.json
+companies.json
+companies.json.bak
+*.xlsx
+*.csv
+*.xls
+
+# Config overrides (if any)
+config.local.json

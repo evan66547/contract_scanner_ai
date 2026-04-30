@@ -1,0 +1,41 @@
+{
+  "scan": {
+    "interval": 1500,
+    "width": 1280,
+    "height": 720,
+    "frameRate": 30
+  },
+  "roi": {
+    "x": 10,
+    "y": 12,
+    "width": 80,
+    "height": 25
+  },
+  "matching": {
+    "minConfidence": 0,
+    "levenshteinDistance": 1,
+    "minMatchRatio": 0.6,
+    "requirePrefix": true,
+    "minKeywordLength": 5
+  },
+  "ui": {
+    "showDebug": false,
+    "showOverlay": true
+  },
+  "ocr": {
+    "provider": "ollama",
+    "ollama": {
+      "baseUrl": "http://localhost:11434",
+      "model": "glm-ocr",
+      "keepAlive": "10m"
+    },
+    "baidu": {
+      "apiKey": "",
+      "secretKey": ""
+    },
+    "ocrspace": {
+      "apiKey": "",
+      "language": "chs"
+    }
+  }
+}
