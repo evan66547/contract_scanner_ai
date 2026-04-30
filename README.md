@@ -12,7 +12,7 @@
 <span id="english"></span>
 ## 🇬🇧 English
 
-**Contract Scanner AI** is a real-time, hardware-independent intelligent scanning system. It turns any mobile browser into a wireless scanner, streaming camera frames via WebSockets to a PC/Mac backend. The backend runs OCR inferences (via local Ollama or cloud APIs), and the frontend performs dynamic fuzzy matching against a loaded target list (e.g., enterprise contracts, logistics entities).
+**Contract Scanner AI** is an OCR-based text scanning and matching application. It uses a mobile device's web browser as the camera input, sending video frames over WebSockets to a local PC or Mac server. The server processes these frames using OCR (via local Ollama models or cloud APIs) to extract text. The extracted text is then compared against a predefined list of target strings (such as company names or contract numbers) using fuzzy matching on the client side, providing real-time feedback when a match is found.
 
 ### ✨ Key Technical Features
 
@@ -56,7 +56,7 @@ cd contract_scanner_ai
 <span id="chinese"></span>
 ## 🇨🇳 中文
 
-**Contract Scanner AI** 是一套支持硬件解耦、支持实时视频流处理的智能目标实体追猎系统。它通过 WebSocket 将手机浏览器的相机帧实时串流至 PC/Mac 后端。后端利用本地大模型或云端 OCR 提取文本后，前端即时执行模糊匹配，实现“点石成金”的智能扫码体验。
+**Contract Scanner AI** 是一个基于 OCR 的文本扫描与匹配工具。系统利用移动端网页浏览器采集摄像头画面，通过 WebSocket 将视频帧实时传输至运行在 PC/Mac 的本地服务端。服务端调用 OCR 引擎（本地 Ollama 模型或云端 API）提取画面文本，前端随后将提取到的文本与预设的目标清单（如企业名称、合同编号）进行模糊匹配，并在匹配成功时提供实时反馈。
 
 ### ✨ 核心技术架构
 
