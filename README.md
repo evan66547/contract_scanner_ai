@@ -1,7 +1,7 @@
 # 🎯 Contract Scanner AI
 
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/evan66547/contract_scanner_ai/blob/main/LICENSE)
-[![python](https://img.shields.io/badge/python-3.9+-yellow.svg)](https://www.python.org/downloads/)
+[![python](https://img.shields.io/badge/python-3.10~3.12-yellow.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-black.svg)](https://ollama.com/)
 
@@ -36,8 +36,8 @@
 ### 🚀 Quick Start
 
 **1. Prerequisites**
-- [Python 3.9+](https://www.python.org/downloads/) & [Ollama](https://ollama.com/) installed.
-- (Optional) Pull the vision model: `ollama run glm-ocr`
+- [Python 3.10-3.12](https://www.python.org/downloads/) installed. (PaddleOCR requires Python <=3.12)
+- (Optional) [Ollama](https://ollama.com/) for local AI OCR: `ollama run glm-ocr`
 
 **2. Run the Server**
 ```bash
@@ -83,8 +83,8 @@ cd contract_scanner_ai
 ### 🚀 极速起步
 
 **1. 前置环境**
-- 安装 [Python 3.9+](https://www.python.org/downloads/) 与 [Ollama](https://ollama.com/)
-- (可选) 下载默认的本地视觉模型：`ollama run glm-ocr`
+- 安装 [Python 3.10-3.12](https://www.python.org/downloads/)（PaddleOCR 不兼容 3.13+）
+- (可选) 安装 [Ollama](https://ollama.com/) 用于本地 AI OCR：`ollama run glm-ocr`
 
 **2. 启动服务**
 ```bash
