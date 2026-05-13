@@ -14,10 +14,13 @@
 
 **Contract Scanner AI** is an OCR-based text scanning and matching application. It uses a mobile device's web browser as the camera input, sending video frames over WebSockets to a local PC or Mac server. The server processes these frames using OCR (via local Ollama models or cloud APIs) to extract text. The extracted text is then compared against a predefined list of target strings (such as company names or contract numbers) using fuzzy matching on the client side, providing real-time feedback when a match is found.
 
+> **Origin Story**: As a legal professional handling debt recovery work, I often faced the daunting task of searching for original evidence documents among mountains of paperwork. This tool was born out of that frustration — to turn hours of manual searching into seconds of automated scanning.
+
 ### ✨ Key Technical Features
 
 - **🧠 Multi-Engine OCR Backend (FastAPI)**
-  - Seamlessly switch between **Ollama (Local GLM-OCR)**, **Baidu Cloud OCR**, and **OCR.Space**.
+  - Seamlessly switch between **Ollama (Local GLM-OCR)**, **Baidu Cloud OCR**, **PaddleOCR (Offline)**, and **OCR.Space**.
+  - Baidu OCR: 6-API automatic fallback chain — when one API's free quota is exhausted, it automatically switches to the next available endpoint.
   - Built-in VRAM protection: Auto-warms up local models, strictly limits concurrent Ollama inferences to prevent Out-Of-Memory crashes, and multiplexes WebSockets.
 - **⚡ Real-Time WebSocket Streaming**
   - Mobile client (`app.js`) extracts camera frames via HTML5 Canvas and streams them to the server continuously without REST overhead.
@@ -58,10 +61,13 @@ cd contract_scanner_ai
 
 **Contract Scanner AI** 是一个基于 OCR 的文本扫描与匹配工具。系统利用移动端网页浏览器采集摄像头画面，通过 WebSocket 将视频帧实时传输至运行在 PC/Mac 的本地服务端。服务端调用 OCR 引擎（本地 Ollama 模型或云端 API）提取画面文本，前端随后将提取到的文本与预设的目标清单（如企业名称、合同编号）进行模糊匹配，并在匹配成功时提供实时反馈。
 
+> **开发背景**：作为一个法务，在做清欠工作寻找证据原件的时候，常常面对成堆的文件，一份一份翻找既耗时又容易遗漏。这个工具就是为了解决这个痛点而开发的——用手机摄像头扫一扫，秒级定位目标文件。
+
 ### ✨ 核心技术架构
 
 - **🧠 多引擎 OCR 后端 (基于 FastAPI)**
-  - 支持热切换 3 种底层引擎：**Ollama (本地 GLM-OCR 等)**、**百度智能云 OCR**、以及 **OCR.Space**。
+  - 支持热切换 4 种底层引擎：**Ollama (本地 GLM-OCR 等)**、**百度智能云 OCR**、**PaddleOCR (纯离线)**、以及 **OCR.Space**。
+  - 百度 OCR 内置 6 个 API 自动降级链：单个接口免费额度用尽时，自动切换到下一个可用接口，最大化利用免费资源。
   - **显存保护机制**：服务器启动时自动侦测并预热本地模型；针对 Ollama 引擎严格实施 `Semaphore(1)` 并发控制，完美杜绝 VRAM 溢出导致的进程崩溃。
 - **⚡ WebSocket 实时推流识别**
   - 手机端 (`app.js`) 灵活调用 HTML5 `mediaDevices` 抓取定制化感兴趣区域 (ROI) 的视频帧，借助 WebSocket 双向通道达成极低延迟的数据交换。
