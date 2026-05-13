@@ -4,13 +4,11 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title data-i18n="admin.title">Scanner AI - Control Panel</title>
+<title data-i18n="admin.title">Scanner AI - Control Panel [UPDATED]</title>
 <!-- 引入 Google Fonts: Plus Jakarta Sans -->
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Removed external fonts for offline support -->
 <!-- 引入 Lucide Icons -->
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="lucide.min.js"></script>
 <style>
         :root {
             /* 现代企业 SaaS 调色板 (ui-ux-pro-max 推荐) */
@@ -57,6 +55,92 @@
         }
         
         .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 32px; font-weight: 500;}
+
+        /* ===== Page Header · White Tech ===== */
+        .page-header {
+            position: relative;
+            padding: 32px 0 28px 20px;
+            margin-bottom: 24px;
+        }
+        /* 左侧 accent 竖条 */
+        .page-header::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 36px;
+            bottom: 28px;
+            width: 4px;
+            background: linear-gradient(180deg, var(--accent-color) 0%, rgba(13,148,136,0.25) 100%);
+            border-radius: 2px;
+        }
+        /* 底部分隔 */
+        .page-header::after {
+            content: '';
+            position: absolute;
+            left: 20px;
+            right: 0;
+            bottom: 0;
+            height: 1px;
+            background: linear-gradient(90deg, var(--accent-color) 0%, #E2E8F0 25%, #E2E8F0 100%);
+        }
+        .page-header h1 {
+            text-align: left;
+            justify-content: flex-start;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: #0F172A;
+            margin: 0 0 8px 0;
+        }
+        .page-header .subtitle {
+            text-align: left;
+            margin: 0;
+            font-size: 15px;
+            color: #64748B;
+            font-weight: 400;
+        }
+        .lang-toggle {
+            background: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 5px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.02em;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .lang-toggle:hover {
+            background: #F1F5F9;
+            border-color: #CBD5E1;
+            color: #0F172A;
+        }
+        /* AI badge */
+        .ai-mark {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--accent-color);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 100px;
+            vertical-align: middle;
+            margin-left: 10px;
+            letter-spacing: 0.05em;
+            box-shadow: 0 2px 12px rgba(13,148,136,0.3);
+        }
+        .ai-mark::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            background: #86EFAC;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(134,239,172,0.5);
+        }
 
         .icon { width: 24px; height: 24px; stroke-width: 2.2px; }
         .icon-sm { width: 18px; height: 18px; stroke-width: 2.2px; }
@@ -138,7 +222,7 @@
             font-weight: 700;
         }
 
-        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex: none; flex-shrink: 0; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .slider {
             position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
@@ -152,29 +236,38 @@
         input:checked+.slider { background-color: var(--success-color); }
         input:checked+.slider:before { transform: translateX(20px); }
 
-        .btn-primary {
-            background: var(--accent-color); color: white; border: none;
-            padding: 14px 24px; border-radius: 10px; font-size: 16px;
-            font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s;
-            display: flex; justify-content: center; align-items: center; gap: 8px;
-        }
-        .btn-primary:hover {
-            background: var(--accent-hover); transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25);
-        }
-
-        .btn-secondary {
-            background: #FFFFFF; color: var(--text-color); border: 1px solid var(--border-color);
+        /* ===== 按钮系统 ===== */
+        .btn {
+            display: inline-flex; justify-content: center; align-items: center; gap: 6px;
             padding: 10px 18px; border-radius: 8px; font-size: 14px;
             font-weight: 600; cursor: pointer; transition: all 0.2s;
-            display: inline-flex; justify-content: center; align-items: center; gap: 6px;
+            border: 1px solid transparent; line-height: 1.4; white-space: nowrap;
             box-shadow: var(--shadow-sm);
         }
-        .btn-secondary:hover { background: #F8FAFC; border-color: #CBD5E1; color: var(--accent-color); box-shadow: 0 2px 8px rgba(13, 148, 136, 0.08); }
-        .btn-success { background: var(--success-color); color: white; border-color: var(--success-color); }
-        .btn-success:hover { background: #059669; border-color: #059669; color: white; }
+        .btn-sm { padding: 6px 14px; font-size: 13px; border-radius: 6px; }
+        .btn-lg { padding: 14px 24px; font-size: 16px; border-radius: 10px; }
 
-        .btn-group { display: flex; gap: 12px; margin-top: 20px; }
+        .btn-primary { background: var(--accent-color); color: white; border-color: var(--accent-color); }
+        .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25); }
+
+        .btn-secondary { background: #FFFFFF; color: var(--text-color); border-color: var(--border-color); }
+        .btn-secondary:hover { background: #F8FAFC; border-color: #CBD5E1; color: var(--accent-color); box-shadow: 0 2px 8px rgba(13, 148, 136, 0.08); transform: translateY(-1px); }
+
+        .btn-success { background: var(--success-color); color: white; border-color: var(--success-color); }
+        .btn-success:hover { background: #059669; border-color: #059669; transform: translateY(-1px); }
+
+        .btn-danger { background: var(--danger-color); color: white; border-color: var(--danger-color); }
+        .btn-danger:hover { background: #DC2626; border-color: #DC2626; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25); }
+
+        .btn-ghost { background: transparent; color: var(--text-muted); border-color: transparent; padding: 4px 8px; font-size: 12px; }
+        .btn-ghost:hover { background: #F1F5F9; color: var(--text-color); }
+        .btn-ghost.btn-danger { color: var(--danger-color); }
+        .btn-ghost.btn-danger:hover { background: #FEF2F2; }
+        .btn-ghost.btn-accent { color: var(--accent-color); }
+        .btn-ghost.btn-accent:hover { background: #F0FDFA; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: flex-start; }
+        .btn-group .btn { flex: 1 1 0%; }
 
         .preview-canvas {
             width: 100%; height: 180px; border: 1px solid var(--border-color); border-radius: 12px;
@@ -228,10 +321,12 @@
 <script src="i18n.js?v=1"></script>
 </head>
 <body>
-<div style="position: absolute; top: 20px; right: 20px;"><button class="btn-secondary" id="lang-toggle" onclick="switchLang()" style="border-radius: 20px; padding: 6px 16px; font-size: 13px;">🇬🇧 EN</button></div>
 <div class="container">
-<h1><i class="icon" data-lucide="scan-line" style="width:28px;height:28px;color:var(--accent-color)"></i> <span data-i18n="admin.header">Scanner AI Control Panel</span> <span class="ai-badge">AI</span></h1>
-<div class="subtitle" data-i18n="admin.subtitle">GLM-OCR Vision Model · Ollama Local Engine</div>
+<div class="page-header">
+  <button class="lang-toggle" id="lang-toggle" onclick="switchLang()">🇬🇧 EN</button>
+  <h1><span data-i18n="admin.header">Scanner AI Control Panel</span><span class="ai-mark">AI</span></h1>
+  <div class="subtitle" data-i18n="admin.subtitle">GLM-OCR Vision Model · Ollama Local Engine</div>
+</div>
 <!-- 服务器状态 -->
 <div class="card">
 <h2><i class="icon" data-lucide="server" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.sys">System Status</span></h2>
@@ -257,36 +352,67 @@
 </div>
 </div>
 <div class="btn-group">
-<button class="btn-secondary btn-success" onclick="openScanner()"><i class="icon-sm" data-lucide="smartphone"></i> <span data-i18n="admin.btn.open_scanner">Open Scanner</span></button>
-<button class="btn-secondary" onclick="openAdmin()"><i class="icon-sm" data-lucide="refresh-cw"></i> <span data-i18n="admin.btn.refresh">Refresh Panel</span></button>
-<button class="btn-secondary" style="background:#FEF2F2;color:#DC2626;border-color:#FECACA" onclick="adminReset()"><i class="icon-sm" data-lucide="power"></i> <span data-i18n="admin.btn.reset">Reset Scanner</span></button>
+<button class="btn btn-success btn-sm" onclick="openScanner()"><i class="icon-sm" data-lucide="smartphone"></i> <span data-i18n="admin.btn.open_scanner">Open Scanner</span></button>
+<button class="btn btn-secondary btn-sm" onclick="openAdmin()"><i class="icon-sm" data-lucide="refresh-cw"></i> <span data-i18n="admin.btn.refresh">Refresh Panel</span></button>
+<button class="btn btn-secondary btn-sm" style="color:var(--danger-color);border-color:var(--danger-color)" onclick="adminReset()"><i class="icon-sm" data-lucide="power"></i> <span data-i18n="admin.btn.reset">Reset Scanner</span></button>
 </div>
 </div>
-<!-- 无线调试 -->
+<!-- 无线调试 & 多设备管理 -->
 <div class="card" id="wifi-card">
-<h2 style="display:flex;align-items:center;gap:8px"><i class="icon" data-lucide="wifi" style="color:var(--accent-color)"></i> 无线调试 <span class="ai-badge">ADB</span><span id="adb-led" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#94a3b8;margin-left:4px;box-shadow:0 0 6px rgba(148,163,184,0.4);transition:background 0.3s"></span></h2>
-<div id="adb-status-display" style="font-size:12px;color:var(--text-muted);margin-bottom:12px">检测中...</div>
-<div style="display:flex;flex-direction:column;gap:10px">
-<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFC;border-radius:8px;border:1px solid var(--border-color)">
-<div style="width:24px;height:24px;border-radius:50%;background:rgba(20,184,166,0.1);color:var(--accent-color);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">1</div>
-<div style="flex:1">
-<div style="font-size:13px;font-weight:600">开启网络模式</div>
-<div style="font-size:11px;color:var(--text-muted)">保持USB线连接，开启后手机可无线接收ADB指令</div>
+<h2 style="display:flex;align-items:center;gap:8px"><i class="icon" data-lucide="wifi" style="color:var(--accent-color)"></i> 手机连接<span id="adb-led" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#94a3b8;margin-left:4px;box-shadow:0 0 6px rgba(148,163,184,0.4);transition:background 0.3s"></span></h2>
+
+<!-- 步骤引导 -->
+<div style="display:flex;gap:6px;margin-bottom:16px;padding:10px 14px;background:linear-gradient(135deg,#f0fdfa,#f8fafc);border-radius:10px;font-size:12px;border:1px solid rgba(20,184,166,0.1)">
+<div id="step-1" style="flex:1;text-align:center;padding:8px 4px;border-radius:8px;background:rgba(20,184,166,0.12);font-weight:600;color:var(--accent-color);transition:all 0.3s">1. 连接手机</div>
+<div style="display:flex;align-items:center;color:#cbd5e1;font-size:16px">›</div>
+<div id="step-2" style="flex:1;text-align:center;padding:8px 4px;border-radius:8px;color:#94a3b8;transition:all 0.3s">2. 开启无线</div>
+<div style="display:flex;align-items:center;color:#cbd5e1;font-size:16px">›</div>
+<div id="step-3" style="flex:1;text-align:center;padding:8px 4px;border-radius:8px;color:#94a3b8;transition:all 0.3s">3. 拔掉USB线</div>
+<div style="display:flex;align-items:center;color:#cbd5e1;font-size:16px">›</div>
+<div id="step-4" style="flex:1;text-align:center;padding:8px 4px;border-radius:8px;color:#94a3b8;transition:all 0.3s">4. 无线连接</div>
 </div>
-<button class="btn-secondary" id="btn-adb-start" onclick="adbWifiStart()" style="font-size:12px;padding:6px 14px">开启</button>
+
+<!-- 设备列表 -->
+<div id="device-list" style="margin-bottom:12px">
+<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px">检测设备中...</div>
 </div>
-<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFC;border-radius:8px;border:1px solid var(--border-color)">
-<div style="width:24px;height:24px;border-radius:50%;background:rgba(20,184,166,0.1);color:var(--accent-color);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">2</div>
-<div style="flex:1">
-<div style="font-size:13px;font-weight:600">连接 WiFi ADB</div>
-<div style="font-size:11px;color:var(--text-muted)">拔掉数据线，通过WiFi与手机建立连接</div>
+
+<!-- 操作按钮 -->
+<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+<button class="btn btn-secondary btn-sm" style="padding:8px 16px;font-weight:600" id="btn-adb-start-all" onclick="adbWifiStartAll()">⚡ 开启无线连接</button>
+<button class="btn btn-secondary btn-sm" style="padding:8px 16px;font-weight:600" id="btn-adb-connect-all" onclick="adbWifiConnectAll()">📡 连接手机</button>
 </div>
-<button class="btn-secondary" id="btn-adb-connect" onclick="adbWifiConnect()" style="font-size:12px;padding:6px 14px">连接</button>
+
+<!-- 提示文字 -->
+<div id="adb-hint" style="font-size:11px;color:#64748B;line-height:1.7;padding:10px 14px;background:rgba(20,184,166,0.04);border-radius:8px;border:1px dashed rgba(20,184,166,0.2)">
+<strong style="color:var(--text-main)">操作步骤：</strong>
+<ol style="margin:6px 0 0 16px;padding:0;line-height:1.8">
+<li>用 USB 线连接手机到电脑</li>
+<li>点击「开启无线连接」按钮</li>
+<li>拔掉 USB 线</li>
+<li>点击「连接手机」按钮</li>
+<li>在手机浏览器地址栏输入：<code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px;font-size:11px">localhost:8080</code></li>
+</ol>
 </div>
+
 <div id="adb-result" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:8px">
 <div style="font-size:12px;font-weight:600;color:var(--success-color);margin-bottom:4px">无线连接成功</div>
 <div style="font-size:12px;color:var(--text-main)">手机浏览器访问：<span style="font-family:monospace">http://localhost:8080</span></div>
-<div style="font-size:11px;color:var(--text-muted);margin-top:4px">无数据线，摄像头权限正常可用</div>
+</div>
+</div>
+
+<!-- 日志查看器 -->
+<div class="card" id="log-card">
+<h2 style="display:flex;align-items:center;gap:8px"><i class="icon" data-lucide="file-text" style="color:var(--accent-color)"></i> 系统日志 <span style="font-size:11px;color:var(--text-muted);font-weight:400">AI 调试用</span></h2>
+<button onclick="toggleLogCard()" style="font-size:11px;color:var(--text-muted);background:none;border:1px solid var(--border-color);padding:4px 12px;border-radius:6px;cursor:pointer;margin-bottom:8px">显示日志 ▾</button>
+<div id="log-content" style="display:none">
+<div id="log-viewer" style="font-family:monospace;font-size:11px;line-height:1.5;background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">
+加载日志中...
+</div>
+<div style="display:flex;gap:8px;margin-top:8px">
+<button class="btn btn-secondary btn-sm" onclick="refreshLogs()">刷新</button>
+<button class="btn btn-secondary btn-sm" onclick="downloadLogs()">下载日志</button>
+<button class="btn btn-secondary btn-sm" onclick="clearLogViewer()">清空显示</button>
 </div>
 </div>
 </div>
@@ -294,8 +420,8 @@
 <div class="card" id="ocr-card">
 <h2><i class="icon" data-lucide="brain" style="color:var(--ai-color)"></i> <span data-i18n="admin.card.ocr">OCR Engine</span> <span class="ai-badge">AI</span></h2>
 <!-- 引擎选择 - 按钮式切换 -->
-<div style="display:flex;gap:10px;margin-bottom:20px">
-<label style="flex:1;cursor:pointer">
+<div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+<label style="flex:1;cursor:pointer;min-width:100px">
 <input type="radio" name="ocr-engine" value="ollama" checked onchange="switchOcrProvider()" style="display:none"/>
 <div id="engine-tab-ollama" class="engine-tab active" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
 <div style="font-size:24px;margin-bottom:4px">🖥️</div>
@@ -303,7 +429,7 @@
 <div style="font-size:11px;color:var(--text-muted);margin-top:2px">本地 · 免费 · 离线</div>
 </div>
 </label>
-<label style="flex:1;cursor:pointer">
+<label style="flex:1;cursor:pointer;min-width:100px">
 <input type="radio" name="ocr-engine" value="baidu" onchange="switchOcrProvider()" style="display:none"/>
 <div id="engine-tab-baidu" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
 <div style="font-size:24px;margin-bottom:4px">☁️</div>
@@ -311,7 +437,7 @@
 <div style="font-size:11px;color:var(--text-muted);margin-top:2px">云端 · 中文最强 · 有免费额度</div>
 </div>
 </label>
-<label style="flex:1;cursor:pointer">
+<label style="flex:1;cursor:pointer;min-width:100px">
 <input type="radio" name="ocr-engine" value="ocrspace" onchange="switchOcrProvider()" style="display:none"/>
 <div id="engine-tab-ocrspace" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
 <div style="font-size:24px;margin-bottom:4px">🌐</div>
@@ -319,11 +445,20 @@
 <div style="font-size:11px;color:var(--text-muted);margin-top:2px">云端 · 免费25000次/月</div>
 </div>
 </label>
+<label style="flex:1;cursor:pointer;min-width:100px">
+<input type="radio" name="ocr-engine" value="paddle" onchange="switchOcrProvider()" style="display:none"/>
+<div id="engine-tab-paddle" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
+<div style="font-size:24px;margin-bottom:4px">⚡</div>
+<div style="font-weight:700;font-size:13px">PaddleOCR</div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:2px">本地 · 极速 · 纯离线</div>
+</div>
+</label>
 </div>
 <select id="ocr-provider" style="display:none">
 <option value="ollama">Ollama</option>
 <option value="baidu">Baidu</option>
 <option value="ocrspace">OCR.space</option>
+<option value="paddle">PaddleOCR</option>
 </select>
 <!-- Ollama 配置 -->
 <div id="ocr-ollama" class="ocr-provider-config">
@@ -374,18 +509,32 @@
 <div><strong>免费额度：</strong>每月 25,000 次免费识别，无需信用卡。<br/>注册获取 API Key：<a href="https://ocr.space/ocrapi" target="_blank" style="color:var(--accent-color)">OCR.space 官网</a></div>
 </div>
 </div>
+<!-- PaddleOCR 配置 -->
+<div id="ocr-paddle" class="ocr-provider-config" style="display:none">
+<div class="form-group">
+<label>GPU 加速<div class="label-desc">启用 GPU 可大幅提升速度（需 CUDA 环境）</div></label>
+<select id="paddle-usegpu" style="width:200px">
+<option value="false">CPU（默认）</option>
+<option value="true">GPU</option>
+</select>
+</div>
+<div class="info-box ai-info">
+<i data-lucide="shield-check"></i>
+<div><strong>纯离线：</strong>所有识别在本地完成，无需网络，不发送任何数据到外部。</div>
+</div>
+</div>
 <div style="margin-top:16px;display:flex;align-items:center;gap:12px">
-<button class="btn-secondary" onclick="testOcrConnection()"><i class="icon-sm" data-lucide="wifi"></i> <span data-i18n="admin.btn.test_ocr">Test Connection</span></button>
+<button class="btn btn-secondary btn-sm" onclick="testOcrConnection()"><i class="icon-sm" data-lucide="wifi"></i> <span data-i18n="admin.btn.test_ocr">Test Connection</span></button>
 <div id="ocr-test-result" style="font-size:13px;font-weight:600"></div>
 </div>
 </div>
 <!-- 数据导入 -->
 <div class="card" id="import-card">
 <h2><i class="icon" data-lucide="arrow-down-to-line" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.import">Data Import</span></h2>
-<div style="display:flex;gap:10px;margin-bottom:15px;align-items:stretch">
-<a class="btn-secondary" href="/api/template" style="text-decoration:none;text-align:center;flex:1"><i class="icon-sm" data-lucide="file-down"></i> <span data-i18n="admin.btn.template">Template</span></a>
-<button class="btn-secondary" onclick="viewImportedData()" style="flex:1"><i class="icon-sm" data-lucide="list"></i> <span data-i18n="admin.btn.view_list">View List</span></button>
-<label class="btn-secondary" style="text-align:center;flex:1;cursor:pointer"><i class="icon-sm" data-lucide="folder-open"></i> <span data-i18n="admin.btn.select_file">Select File</span><input accept=".xlsx,.csv" id="import-file" onchange="handleImportFile(this)" style="display:none" type="file"/></label>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:15px">
+<a class="btn btn-secondary" href="/api/template" style="display:flex;text-decoration:none"><i class="icon-sm" data-lucide="file-down"></i> <span data-i18n="admin.btn.template">Template</span></a>
+<button class="btn btn-secondary" style="display:flex" onclick="viewImportedData()"><i class="icon-sm" data-lucide="list"></i> <span data-i18n="admin.btn.view_list">View List</span></button>
+<label class="btn btn-primary" style="display:flex;cursor:pointer"><i class="icon-sm" data-lucide="folder-open"></i> <span data-i18n="admin.btn.select_file">Select File</span><input accept=".xlsx,.csv" id="import-file" onchange="handleImportFile(this)" style="display:none" type="file"/></label>
 </div>
 <!-- 拖拽区域 -->
 <div id="drop-zone" onclick="document.getElementById('import-file').click()" onmouseout="this.style.borderColor='var(--border-color)';this.style.backgroundColor='#F8FAFC'" onmouseover="this.style.borderColor='var(--accent-color)';this.style.backgroundColor='#F0FDFA'" style="border:2px dashed var(--border-color);background:#F8FAFC;border-radius:12px;padding:36px;text-align:center;color:var(--text-muted);transition:all 0.3s;cursor:pointer">
@@ -416,7 +565,7 @@
 <select id="manual-info2-col" style="width:100%"><option value="-1"><span data-i18n="msg.none">-- None --</span></option></select>
 </div>
 </div>
-<button class="btn-secondary" onclick="reMapColumns()" style="margin-top:12px;width:100%"><i class="icon-sm" data-lucide="refresh-ccw"></i> <span data-i18n="admin.btn.remap">Remap Columns</span></button>
+<button class="btn btn-secondary" onclick="reMapColumns()" style="margin-top:12px"><i class="icon-sm" data-lucide="refresh-ccw"></i> <span data-i18n="admin.btn.remap">Remap Columns</span></button>
 </div>
 <!-- 预览表格 -->
 <div style="border:1px solid var(--border-color);border-radius:8px;overflow:hidden;margin-bottom:12px;">
@@ -428,8 +577,8 @@
 </div>
 </div>
 <div style="display:flex;gap:12px;margin-top:16px">
-<button class="btn-secondary" onclick="cancelImport()" style="flex:1"><i class="icon-sm" data-lucide="x"></i> <span data-i18n="admin.btn.cancel">Cancel</span></button>
-<button class="btn-secondary btn-success" onclick="confirmImport()" style="flex:1"><i class="icon-sm" data-lucide="check"></i> <span data-i18n="admin.btn.confirm">Confirm Import</span></button>
+<button class="btn btn-secondary" onclick="cancelImport()" style="flex:1"><i class="icon-sm" data-lucide="x"></i> <span data-i18n="admin.btn.cancel">Cancel</span></button>
+<button class="btn btn-success" onclick="confirmImport()" style="flex:1"><i class="icon-sm" data-lucide="check"></i> <span data-i18n="admin.btn.confirm">Confirm Import</span></button>
 </div>
 </div>
 <!-- 数据查看区域 -->
@@ -545,21 +694,21 @@
 <div class="card">
 <h2><i class="icon" data-lucide="info" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.about">About System</span></h2>
 <div style="font-size:13px; line-height:1.8; color:var(--text-muted)">
-<p style="margin:4px 0"><strong data-i18n="admin.about.ocr">OCR Engine</strong>：<span data-i18n="admin.about.ocr_val">GLM-OCR 0.9B (Zhipu AI Vision Model)</span></p>
-<p style="margin:4px 0"><strong data-i18n="admin.about.engine">Inference Engine</strong>：<span data-i18n="admin.about.engine_val">Ollama (Apple Metal GPU Accel)</span></p>
-<p style="margin:4px 0"><strong data-i18n="admin.about.alg">Matching Algorithm</strong>：<span data-i18n="admin.about.alg_val">Keyword / Prefix / Levenshtein Distance</span></p>
-<p style="margin:4px 0"><strong data-i18n="admin.about.db">Built-in Data</strong>：<span id="target-count" style="font-weight:700;color:var(--accent-color)">--</span> <span data-i18n="admin.about.db_val">targets tracked</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.ocr">OCR Engine</strong><span data-i18n="admin.about.ocr_val">GLM-OCR 0.9B (Zhipu AI Vision Model)</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.engine">Inference Engine</strong><span data-i18n="admin.about.engine_val">Ollama (Apple Metal GPU Accel)</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.alg">Matching Algorithm</strong><span data-i18n="admin.about.alg_val">Keyword / Prefix / Levenshtein Distance</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.db">Built-in Data</strong><span id="target-count" style="font-weight:700;color:var(--accent-color)">--</span> <span data-i18n="admin.about.db_val">targets tracked</span></p>
 </div>
 </div>
 </div>
-<button class="btn-primary" onclick="saveConfig()"><i class="icon-sm" data-lucide="save"></i> <span data-i18n="admin.btn.save">Save &amp; Apply Config</span></button>
+<div style="display:flex;justify-content:center"><button class="btn btn-primary btn-lg" onclick="saveConfig()"><i class="icon-sm" data-lucide="save"></i> <span data-i18n="admin.btn.save">Save &amp; Apply Config</span></button></div>
 <div id="status-msg"></div>
 </div>
 <script>
         // Initialize Lucide icons
-        lucide.createIcons();
+        if (typeof lucide !== 'undefined') lucide.createIcons();
 
-        let currentConfig = {};
+        var currentConfig = {};
 
         async function openScanner() {
             showStatus('📱 正在手机上打开扫描器...', 'var(--accent-color)');
@@ -652,6 +801,8 @@
             const ocrspace = ocr.ocrspace || {};
             document.getElementById('ocrspace-apikey').value = ocrspace.apiKey || '';
             document.getElementById('ocrspace-lang').value = ocrspace.language || 'chs';
+            const paddle = ocr.paddle || {};
+            document.getElementById('paddle-usegpu').value = paddle.useGpu ? 'true' : 'false';
             switchOcrProvider();
         }
 
@@ -684,6 +835,9 @@
                     ocrspace: {
                         apiKey: document.getElementById('ocrspace-apikey').value,
                         language: document.getElementById('ocrspace-lang').value
+                    },
+                    paddle: {
+                        useGpu: document.getElementById('paddle-usegpu').value === 'true'
                     }
                 };
                 currentConfig.ocr = ocrCfg;
@@ -792,6 +946,9 @@
                     ocrspace: {
                         apiKey: document.getElementById('ocrspace-apikey').value,
                         language: document.getElementById('ocrspace-lang').value
+                    },
+                    paddle: {
+                        useGpu: document.getElementById('paddle-usegpu').value === 'true'
                     }
                 }
             };
@@ -894,9 +1051,9 @@
             infoSelect.innerHTML = '<option value="-1"><span data-i18n="msg.none">-- None --</span></option>';
             info2Select.innerHTML = '<option value="-1"><span data-i18n="msg.none">-- None --</span></option>';
             data.headers.forEach((h, i) => {
-                nameSelect.innerHTML += `<option value="${i}">${h}</option>`;
-                infoSelect.innerHTML += `<option value="${i}">${h}</option>`;
-                info2Select.innerHTML += `<option value="${i}">${h}</option>`;
+                const opt1 = document.createElement('option'); opt1.value = i; opt1.textContent = h; nameSelect.appendChild(opt1);
+                const opt2 = document.createElement('option'); opt2.value = i; opt2.textContent = h; infoSelect.appendChild(opt2);
+                const opt3 = document.createElement('option'); opt3.value = i; opt3.textContent = h; info2Select.appendChild(opt3);
             });
 
             // 回填已识别的结果
@@ -942,8 +1099,8 @@
                 `<tr style="border-bottom:1px solid #eee">
                     <td style="padding:6px 8px;color:var(--text-muted)">${i+1}</td>
                     <td style="padding:6px 8px">${escapeHtml(item.name) || '<span style=color:#ccc><span data-i18n="msg.empty">Empty</span></span>'}</td>
-                    <td style="padding:6px 8px;color:#666">${escapeHtml(item.displayInfo) || '-'}</td>
-                    <td style="padding:6px 8px;color:#666">${escapeHtml(item.displayInfo2) || '-'}</td>
+                    <td style="padding:6px 8px;color:#666">${escapeHtml(formatDisplay(item.displayInfo)) || '-'}</td>
+                    <td style="padding:6px 8px;color:#666">${escapeHtml(formatDisplay(item.displayInfo2)) || '-'}</td>
                 </tr>`
             ).join('');
         }
@@ -1025,6 +1182,13 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function formatDisplay(text) {
+            if (!text) return text;
+            const s = String(text).trim();
+            const m = s.match(/^(\d{4}-\d{2}-\d{2})\s+00:00:00$/);
+            return m ? m[1] : s;
+        }
+
         // === 查看已导入数据（含增删改） ===
         let viewTargets = [];
 
@@ -1052,8 +1216,8 @@
             let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
             html += '<div style="font-weight:600">当前共有 <span style="color:var(--accent-color)">' + targets.length + '</span> 条记录</div>';
             html += '<div style="display:flex;gap:8px">';
-            html += '<button id="clear-all-btn" class="btn-secondary" onclick="confirmClearAll()" style="font-size:13px;padding:6px 14px;background:#FEF2F2;color:#DC2626;border-color:#FECACA"><i class="icon-sm" data-lucide="trash-2"></i> 清空名单</button>';
-            html += '<button class="btn-secondary btn-success" onclick="showAddForm()" style="font-size:13px;padding:6px 14px"><i class="icon-sm" data-lucide="plus"></i> 添加</button>';
+            html += '<button id="clear-all-btn" class="btn btn-danger btn-sm" onclick="confirmClearAll()"><i class="icon-sm" data-lucide="trash-2"></i> 清空名单</button>';
+            html += '<button class="btn btn-success btn-sm" onclick="showAddForm()"><i class="icon-sm" data-lucide="plus"></i> 添加</button>';
             html += '</div></div>';
 
             // 添加表单（默认隐藏）
@@ -1063,8 +1227,8 @@
             html += '<input id="add-name" type="text" placeholder="' + escapeHtml(h.name) + '" style="flex:2;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;min-width:150px"/>';
             html += '<input id="add-info" type="text" placeholder="' + escapeHtml(h.displayInfo) + '（可选）" style="flex:2;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;min-width:150px"/>';
             html += '<input id="add-info2" type="text" placeholder="' + escapeHtml(h.displayInfo2) + '（可选）" style="flex:2;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;min-width:150px"/>';
-            html += '<button class="btn-secondary btn-success" onclick="addTarget()" style="font-size:13px;padding:8px 16px;white-space:nowrap">确认添加</button>';
-            html += '<button class="btn-secondary" onclick="hideAddForm()" style="font-size:13px;padding:8px 12px">取消</button>';
+            html += '<button class="btn btn-success btn-sm" onclick="addTarget()" style="white-space:nowrap">确认添加</button>';
+            html += '<button class="btn btn-secondary btn-sm" onclick="hideAddForm()">取消</button>';
             html += '</div></div>';
 
             // 列表
@@ -1082,17 +1246,17 @@
                 html += `<tr id="row-${i}" style="border-bottom:1px solid #f1f5f9;transition:background 0.15s" onmouseenter="this.style.background='#F8FAFC'" onmouseleave="this.style.background=''">
                     <td style="padding:8px 12px;color:var(--text-muted)">${i + 1}</td>
                     <td style="padding:8px 12px;font-weight:500">${escapeHtml(item.name)}</td>
-                    <td style="padding:8px 12px;color:var(--text-muted)">${escapeHtml(item.displayInfo) || '-'}</td>
-                    <td style="padding:8px 12px;color:var(--text-muted)">${escapeHtml(item.displayInfo2) || '-'}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted)">${escapeHtml(formatDisplay(item.displayInfo)) || '-'}</td>
+                    <td style="padding:8px 12px;color:var(--text-muted)">${escapeHtml(formatDisplay(item.displayInfo2)) || '-'}</td>
                     <td style="padding:8px 12px;text-align:center">
-                        <button onclick="showEditForm(${i})" style="background:none;border:none;cursor:pointer;color:var(--accent-color);font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px" onmouseenter="this.style.background='#F0FDFA'" onmouseleave="this.style.background=''">编辑</button>
-                        <button id="del-btn-${i}" onclick="confirmDelete(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger-color);font-size:12px;font-weight:600;padding:4px 8px;border-radius:4px" onmouseenter="this.style.background='#FEF2F2'" onmouseleave="this.style.background=''">删除</button>
+                        <button class="btn btn-ghost btn-accent" onclick="showEditForm(${i})"><i class="icon-sm" data-lucide="pencil" style="width:12px;height:12px"></i> 编辑</button>
+                        <button id="del-btn-${i}" class="btn btn-ghost btn-danger" onclick="confirmDelete(${i})"><i class="icon-sm" data-lucide="trash-2" style="width:12px;height:12px"></i> 删除</button>
                     </td>
                 </tr>`;
             });
 
             html += '</tbody></table></div>';
-            html += '<div style="margin-top:12px;display:flex;justify-content:flex-end"><button class="btn-secondary" onclick="closeTargetList()">关闭</button></div>';
+            html += '<div style="margin-top:12px;display:flex;justify-content:flex-end"><button class="btn btn-secondary btn-sm" onclick="closeTargetList()">关闭</button></div>';
 
             // 切换UI
             document.getElementById('drop-zone').style.display = 'none';
@@ -1149,8 +1313,8 @@
             cells[2].innerHTML = `<input id="edit-info-${index}" type="text" value="${escapeHtml(item.displayInfo || '')}" style="width:100%;padding:4px 8px;border:1px solid var(--accent-color);border-radius:6px;font-size:13px"/>`;
             cells[3].innerHTML = `<input id="edit-info2-${index}" type="text" value="${escapeHtml(item.displayInfo2 || '')}" style="width:100%;padding:4px 8px;border:1px solid var(--accent-color);border-radius:6px;font-size:13px"/>`;
             cells[4].innerHTML = `
-                <button onclick="saveEdit(${index})" style="background:none;border:none;cursor:pointer;color:var(--success-color);font-size:12px;font-weight:600;padding:4px 8px">保存</button>
-                <button onclick="renderTargetList()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:12px;font-weight:600;padding:4px 8px">取消</button>`;
+                <button class="btn btn-ghost btn-accent" onclick="saveEdit(${index})"><i class="icon-sm" data-lucide="check" style="width:12px;height:12px"></i> 保存</button>
+                <button class="btn btn-ghost" onclick="renderTargetList()"><i class="icon-sm" data-lucide="x" style="width:12px;height:12px"></i> 取消</button>`;
             document.getElementById('edit-name-' + index).focus();
         }
 
@@ -1267,7 +1431,7 @@
                 const statusEl = document.getElementById('model-status');
                 const engineEl = document.getElementById('ai-engine');
 
-                const providerNames = {ollama: 'GLM-OCR', baidu: '百度 OCR', ocrspace: 'OCR.space', openai: 'OpenAI'};
+                const providerNames = {ollama: 'GLM-OCR', baidu: '百度 OCR', ocrspace: 'OCR.space', openai: 'OpenAI', paddle: 'PaddleOCR'};
                 engineEl.textContent = providerNames[data.provider] || data.provider;
 
                 if (data.provider === 'ollama') {
@@ -1278,7 +1442,7 @@
                         statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;box-shadow:0 0 6px rgba(16,185,129,0.5)"></span> <span style="color:#10b981;font-weight:600">' + t('admin.stat.ready') + '</span>';
                     } else if (!_modelLoading) {
                         // 未加载，显示加载按钮
-                        statusEl.innerHTML = '<button onclick="triggerModelLoad()" style="background:var(--accent-color);color:#fff;border:none;border-radius:6px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer">点击加载模型</button>';
+                        statusEl.innerHTML = '<button class="btn btn-primary btn-sm" onclick="triggerModelLoad()" style="padding:3px 12px;font-size:11px">点击加载模型</button>';
                     }
                 } else {
                     if (data.ready) {
@@ -1350,22 +1514,20 @@
             try {
                 const res = await fetch('/api/adb-wifi-status?t=' + Date.now());
                 const data = await res.json();
-                const el = document.getElementById('adb-status-display');
                 if (data.connected) {
-                    const modeText = data.mode === 'usb' ? 'USB 连接' : 'WiFi 连接';
                     const color = data.mode === 'wifi' ? '#10b981' : '#0ea5e9';
                     const shadow = data.mode === 'wifi' ? 'rgba(16,185,129,0.6)' : 'rgba(14,165,233,0.5)';
                     updateAdbLed(color, shadow);
-                    el.innerHTML = '<span style="color:' + color + ';font-weight:600">●</span> 设备已连接（' + modeText + '）' + (data.wifi_ip ? ' · 手机IP: ' + data.wifi_ip : '');
                 } else {
                     updateAdbLed('#94a3b8', 'rgba(148,163,184,0.3)');
-                    el.innerHTML = '<span style="color:#94a3b8">●</span> 未检测到 ADB 设备，请先用 USB 线连接手机';
                 }
+                refreshDeviceList();
             } catch (e) {
                 updateAdbLed('#ef4444', 'rgba(239,68,68,0.4)');
-                document.getElementById('adb-status-display').innerHTML = '<span style="color:#ef4444">●</span> ADB 状态检测失败';
             }
         }
+
+        let _cachedPhoneIp = null;
 
         async function adbWifiStart() {
             const btn = document.getElementById('btn-adb-start');
@@ -1375,7 +1537,9 @@
                 const res = await fetch('/api/adb-wifi-start', { method: 'POST' });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    alert('✅ ' + data.message + '\n\n下一步：拔掉 USB 数据线，然后点击「连接 WiFi ADB」');
+                    _cachedPhoneIp = data.wifi_ip;
+                    const ipText = data.wifi_ip ? '\n手机 WiFi IP: ' + data.wifi_ip : '';
+                    alert('✅ ' + data.message + '\n\n下一步：拔掉 USB 数据线，然后点击「连接 WiFi ADB」' + ipText);
                 } else {
                     alert('❌ 开启失败: ' + data.message);
                 }
@@ -1392,7 +1556,8 @@
             btn.textContent = '连接中...';
             btn.disabled = true;
             try {
-                const res = await fetch('/api/adb-wifi-connect', { method: 'POST' });
+                const body = _cachedPhoneIp ? JSON.stringify({ wifi_ip: _cachedPhoneIp }) : '{}';
+                const res = await fetch('/api/adb-wifi-connect', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body });
                 const data = await res.json();
                 if (data.status === 'success') {
                     document.getElementById('adb-result').style.display = 'block';
@@ -1407,6 +1572,210 @@
                 btn.disabled = false;
             }
         }
+
+        // === 多设备管理 ===
+        let _currentStep = 1;
+
+        function updateStepIndicator(step) {
+            _currentStep = step;
+            for (let i = 1; i <= 4; i++) {
+                const el = document.getElementById('step-' + i);
+                if (!el) continue;
+                if (i < step) {
+                    el.style.background = 'rgba(16,185,129,0.1)';
+                    el.style.color = '#10b981';
+                    el.style.fontWeight = '600';
+                } else if (i === step) {
+                    el.style.background = 'rgba(20,184,166,0.1)';
+                    el.style.color = 'var(--accent-color)';
+                    el.style.fontWeight = '600';
+                } else {
+                    el.style.background = 'none';
+                    el.style.color = '#94a3b8';
+                    el.style.fontWeight = '400';
+                }
+            }
+        }
+
+        function escapeAttr(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        async function refreshDeviceList() {
+            try {
+                const res = await fetch('/api/adb-devices?t=' + Date.now());
+                const data = await res.json();
+                const container = document.getElementById('device-list');
+                if (!data.devices || data.devices.length === 0) {
+                    container.textContent = '';
+                    const hint = document.createElement('div');
+                    hint.style.cssText = 'font-size:12px;color:var(--text-muted);text-align:center;padding:16px';
+                    hint.textContent = '未检测到设备，请用 USB 线连接手机';
+                    container.appendChild(hint);
+                    updateStepIndicator(1);
+                    return;
+                }
+                updateStepIndicator(data.devices.some(d => d.mode === 'wifi') ? 4 : 1);
+                container.textContent = '';
+                data.devices.forEach(d => {
+                    const modeColor = d.mode === 'wifi' ? '#10b981' : '#0ea5e9';
+                    const modeBg = d.mode === 'wifi' ? 'rgba(16,185,129,0.06)' : 'rgba(14,165,233,0.04)';
+                    const modeLabel = d.mode === 'wifi' ? 'WiFi' : 'USB';
+                    const modelLabel = d.model || d.serial;
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;background:' + modeBg + ';border-radius:10px;border:1px solid ' + modeColor + '20;margin-bottom:8px;transition:all 0.2s';
+                    // LED indicator
+                    const led = document.createElement('span');
+                    led.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;background:' + modeColor + ';box-shadow:0 0 8px ' + modeColor + '60;flex-shrink:0';
+                    // Info section
+                    const info = document.createElement('div');
+                    info.style.cssText = 'flex:1;min-width:0';
+                    const name = document.createElement('div');
+                    name.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-main)';
+                    name.textContent = modelLabel;
+                    const detail = document.createElement('div');
+                    detail.style.cssText = 'font-size:11px;color:#64748B;margin-top:2px';
+                    detail.textContent = d.serial + ' · ' + modeLabel + (d.wifi_ip ? ' · IP: ' + d.wifi_ip : '');
+                    info.appendChild(name);
+                    info.appendChild(detail);
+                    // Button
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-secondary btn-sm';
+                    btn.style.cssText = 'flex-shrink:0';
+                    btn.textContent = '打开扫描器';
+                    btn.addEventListener('click', function() { openOnDevice(d.serial); });
+                    row.appendChild(led);
+                    row.appendChild(info);
+                    row.appendChild(btn);
+                    container.appendChild(row);
+                });
+            } catch (e) {
+                const container = document.getElementById('device-list');
+                container.textContent = '';
+                const errDiv = document.createElement('div');
+                errDiv.style.cssText = 'font-size:12px;color:#ef4444;text-align:center;padding:16px';
+                errDiv.textContent = '设备检测失败: ' + e.message;
+                container.appendChild(errDiv);
+            }
+        }
+
+        async function adbWifiStartAll() {
+            const btn = document.getElementById('btn-adb-start-all');
+            btn.textContent = '开启中...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/adb-wifi-start-all', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    updateStepIndicator(3);
+                    const details = data.results.map(r => r.serial + ': ' + (r.status === 'success' ? '✅ IP: ' + (r.wifi_ip || '未知') : '❌ ' + (r.message || '失败'))).join('\n');
+                    alert('✅ ' + data.message + '\n\n' + details + '\n\n下一步：拔掉所有 USB 线，然后点击「一键WiFi连接」');
+                } else {
+                    alert('❌ ' + data.message);
+                }
+            } catch (e) {
+                alert('❌ 请求失败: ' + e.message);
+            } finally {
+                btn.textContent = '⚡ 开启无线连接';
+                btn.disabled = false;
+                refreshDeviceList();
+            }
+        }
+
+        async function adbWifiConnectAll() {
+            const btn = document.getElementById('btn-adb-connect-all');
+            btn.textContent = '连接中...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/adb-wifi-connect-all', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    updateStepIndicator(4);
+                    document.getElementById('adb-result').style.display = 'block';
+                    const details = data.results.map(r => r.wifi_ip + ': ' + (r.connect === 'ok' ? '✅' : '❌ ' + r.message)).join('\n');
+                    alert('✅ ' + data.message + '\n\n' + details);
+                } else {
+                    alert('❌ ' + data.message);
+                }
+            } catch (e) {
+                alert('❌ 请求失败: ' + e.message);
+            } finally {
+                btn.textContent = '📡 连接手机';
+                btn.disabled = false;
+                refreshDeviceList();
+            }
+        }
+
+        async function openOnDevice(serial) {
+            try {
+                const res = await fetch('/api/open-on-phone/' + encodeURIComponent(serial), { method: 'POST' });
+                const data = await res.json();
+                alert(data.status === 'success' ? '✅ ' + data.message : '❌ ' + data.message);
+            } catch (e) {
+                alert('❌ 请求失败: ' + e.message);
+            }
+        }
+
+        // === 日志查看器 ===
+        async function refreshLogs() {
+            try {
+                const res = await fetch('/api/logs?lines=200&t=' + Date.now());
+                const data = await res.json();
+                const viewer = document.getElementById('log-viewer');
+                if (data.logs) {
+                    const lines = data.logs.trim().split('\n');
+                    viewer.textContent = '';
+                    lines.forEach(line => {
+                        const div = document.createElement('div');
+                        let color = '#cbd5e1';
+                        if (line.includes('[ERROR]')) color = '#fca5a5';
+                        else if (line.includes('[WARNING]')) color = '#fde68a';
+                        else if (line.includes('[INFO]')) color = '#94a3b8';
+                        div.style.color = color;
+                        div.style.minHeight = '1.4em';
+                        div.textContent = line;
+                        viewer.appendChild(div);
+                    });
+                    viewer.scrollTop = viewer.scrollHeight;
+                } else {
+                    viewer.textContent = '暂无日志';
+                }
+            } catch (e) {
+                document.getElementById('log-viewer').textContent = '加载失败: ' + e.message;
+            }
+        }
+
+        async function downloadLogs() {
+            window.open('/api/logs/download', '_blank');
+        }
+
+        function clearLogViewer() {
+            const viewer = document.getElementById('log-viewer');
+            viewer.textContent = '';
+            const span = document.createElement('span');
+            span.style.color = '#64748b';
+            span.textContent = '日志已清空，点击「刷新」重新加载';
+            viewer.appendChild(span);
+        }
+
+        function toggleLogCard() {
+            const content = document.getElementById('log-content');
+            const btn = content.previousElementSibling;
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                btn.textContent = '隐藏日志 ▴';
+                refreshLogs();
+            } else {
+                content.style.display = 'none';
+                btn.textContent = '显示日志 ▾';
+            }
+        }
+
+        // 定时刷新设备列表和日志
+        setInterval(refreshDeviceList, 10000);
+        setInterval(refreshLogs, 15000);
+        refreshDeviceList();
+        refreshLogs();
 
         // 启动时检查一次
         checkAdbStatus();

@@ -3,3 +3,5 @@ uvicorn[standard]
 ollama
 openpyxl
 aiohttp
+qrcode[pil]  # 服务端生成 WiFi 二维码，支持纯内网环境
+# paddleocr  # 可选：本地离线 OCR 引擎，安装较重（~500MB），如需使用请取消注释

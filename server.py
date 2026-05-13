@@ -13,12 +13,20 @@ import csv
 import socket
 import subprocess
 
+import multiprocessing
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import openpyxl
 import aiohttp
+import logging
+from logging.handlers import RotatingFileHandler
+import concurrent.futures
+
+# === 服务配置 ===
+SERVER_PORT = int(os.environ.get('PORT', os.environ.get('SERVER_PORT', 8080)))
+DEBUG_WS = os.environ.get("DEBUG_WS", "0") == "1"
 
 # === 全局 aiohttp Session（复用连接池，避免每次请求创建新连接） ===
 http_session: Optional[aiohttp.ClientSession] = None
@@ -30,37 +38,44 @@ async def _reset_http_session():
         await http_session.close()
     timeout = aiohttp.ClientTimeout(total=60, connect=10)
     http_session = aiohttp.ClientSession(timeout=timeout)
-    print("🔄 aiohttp Session 已重置（清理死连接）")
+    logger.info("🔄 aiohttp Session 已重置（清理死连接）")
 
 # === WebSocket 并发控制 ===
-MAX_WS_CONNECTIONS = 3  # 最多 3 个 WebSocket 客户端连接
-MAX_OLLAMA_CONCURRENT = 1  # 同时只允许 1 个 Ollama 推理请求（保护其他模型）
+MAX_WS_CONNECTIONS = 5  # Support up to 5 devices
+MAX_OCR_CONCURRENT = 5  # 增加并发限制
 ws_semaphore: Optional[asyncio.Semaphore] = None
 active_ws_clients: Set[WebSocket] = set()
 
+# ================================
+# PaddleOCR 引擎（针对 M1 Pro 深度优化）
+# ================================
+_paddle_ocr_instance = None
+# 建议单并发，让单个任务占满 CPU 核心以降低单帧延迟，防止系统卡顿
+ocr_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """管理应用生命周期：启动时创建 HTTP Session，预热模型，关闭时释放"""
+    """管理应用生命周期：启动时创建 HTTP Session，预热模型，关闭时释放理论"""
     global http_session, ws_semaphore
     timeout = aiohttp.ClientTimeout(total=60, connect=10)
     http_session = aiohttp.ClientSession(timeout=timeout)
-    ws_semaphore = asyncio.Semaphore(MAX_OLLAMA_CONCURRENT)
-    print("✅ aiohttp Session 已创建")
-    print(f"✅ Ollama 并发限制: {MAX_OLLAMA_CONCURRENT}")
+    ws_semaphore = asyncio.Semaphore(MAX_OCR_CONCURRENT)
+    logger.info("✅ aiohttp Session 已创建")
+    logger.info(f"✅ OCR 并发限制: {MAX_OCR_CONCURRENT}")
 
     # 预热 GLM-OCR 模型（加载到显存/内存）
     asyncio.create_task(warmup_model())
 
     yield
     await http_session.close()
-    print("🔚 aiohttp Session 已关闭")
+    logger.info("🔚 aiohttp Session 已关闭")
 
 async def warmup_model():
     """启动后异步预热模型（仅 Ollama 引擎，不抢占其他模型显存）"""
     try:
         cfg = get_ocr_config()
         if cfg["ocr"].get("provider", "ollama") != "ollama":
-            print("⏭️ 当前非 Ollama 引擎，跳过预热")
+            logger.info("⏭️ 当前非 Ollama 引擎，跳过预热")
             return
         ollama_cfg = cfg["ocr"].get("ollama", {})
         base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
@@ -73,31 +88,52 @@ async def warmup_model():
                 loaded = [m.get("name", "") for m in ps_data.get("models", [])]
                 other_loaded = [n for n in loaded if model not in n]
                 if other_loaded:
-                    print(f"⏭️ 检测到其他模型运行中 ({', '.join(other_loaded)})，跳过预热避免抢占显存")
+                    logger.info(f"⏭️ 检测到其他模型运行中 ({', '.join(other_loaded)})，跳过预热避免抢占显存")
                     return
                 if any(model in n for n in loaded):
-                    print(f"✅ {model} 已在内存中，无需预热")
+                    logger.info(f"✅ {model} 已在内存中，无需预热")
                     return
 
-        print(f"⏳ 正在预热模型 {model}...")
+        logger.info(f"⏳ 正在预热模型 {model}...")
         url = f"{base_url.rstrip('/')}/api/generate"
         payload = {"model": model, "prompt": "hi", "stream": False, "keep_alive": ollama_cfg.get("keepAlive", "10m")}
         async with http_session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as resp:
             if resp.status == 200:
-                print(f"✅ 模型 {model} 预热完成，已加载到内存")
+                logger.info(f"✅ 模型 {model} 预热完成，已加载到内存")
             else:
-                print(f"⚠️ 模型预热失败: HTTP {resp.status}")
+                logger.warning(f"⚠️ 模型预热失败: HTTP {resp.status}")
     except Exception as e:
-        print(f"⚠️ 模型预热异常: {e}")
+        logger.warning(f"⚠️ 模型预热异常: {e}")
 
 app = FastAPI(title="Contract Scanner AI", lifespan=lifespan)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# === 日志系统 ===
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, "scanner.log")
+
+logger = logging.getLogger("scanner")
+logger.setLevel(logging.INFO)
+# Prevent duplicate handlers on reload
+if not logger.handlers:
+    handler = RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] [%(module)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    logger.addHandler(handler)
+    # Also log to console
+    console = logging.StreamHandler()
+    console.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"))
+    logger.addHandler(console)
+
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 TARGETS_FILE = os.path.join(BASE_DIR, "targets.json")
 
 NAME_ALIASES = {'识别对象', '公司名称', '公司名', '名称', '公司', '目标', '对象', 'company', 'name', 'target', '企业名称', '单位名称', '客户名称'}
 INFO_ALIASES = {'显示信息', '附加信息', '备注', '日期', '开单日期', '合同编号', 'info', 'note', 'date', '说明'}
+
+# ADB 无线调试：缓存手机 WiFi IP（开启 tcpip 时记录，拔线后仍可用）
+adb_wifi_ip_cache: Optional[str] = None
 INFO2_ALIASES = {'合同总额', '欠款金额', '金额', '总额', 'amount', 'total', 'balance', 'debt', '合同金额', '订单金额'}
 
 # Pydantic models
@@ -117,13 +153,16 @@ class ImportConfirmReq(BaseModel):
     headers: List[str] = []
     allRows: List[List[Any]]
 
+class AdbWifiConnectReq(BaseModel):
+    wifi_ip: Optional[str] = None
+
 def load_json(filepath, default_val):
     if os.path.exists(filepath):
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Error loading {filepath}: {e}")
+            logger.error(f"Error loading {filepath}: {e}")
     return default_val
 
 def save_json(filepath, data):
@@ -144,12 +183,16 @@ def get_ocr_config():
             "ollama": {"baseUrl": "http://localhost:11434", "model": old_model, "keepAlive": "10m"},
             "baidu": {"apiKey": "", "secretKey": ""},
             "ocrspace": {"apiKey": "", "language": "chs"},
-            "openai": {"apiKey": "", "model": "gpt-4o-mini", "baseUrl": "https://api.openai.com/v1"}
+            "openai": {"apiKey": "", "model": "gpt-4o-mini", "baseUrl": "https://api.openai.com/v1"},
+            "paddle": {"useGpu": False}
         }
         save_json(CONFIG_FILE, cfg)
     # 确保 ocrspace 配置块存在（向前兼容）
     if "ocrspace" not in cfg.get("ocr", {}):
         cfg["ocr"]["ocrspace"] = {"apiKey": "", "language": "chs"}
+    # 确保 paddle 配置块存在（向前兼容）
+    if "paddle" not in cfg.get("ocr", {}):
+        cfg["ocr"]["paddle"] = {"useGpu": False}
     return cfg
 
 # === 百度 OCR access_token 缓存 ===
@@ -178,6 +221,8 @@ async def dispatch_ocr(base64_img: str) -> str:
         return await call_ocrspace(base64_img, cfg["ocr"].get("ocrspace", {}))
     elif provider == "openai":
         return await call_openai(base64_img, cfg["ocr"]["openai"])
+    elif provider == "paddle":
+        return await call_paddle(base64_img)
     else:
         return await call_ollama(base64_img, cfg["ocr"].get("ollama", {}))
 
@@ -190,9 +235,10 @@ async def call_ollama(base64_img: str, ollama_cfg: dict = None) -> str:
     keep_alive = ollama_cfg.get("keepAlive", "10m")
 
     url = f"{base_url.rstrip('/')}/api/generate"
+    # 针对合同复印件优化 Prompt：增加对干扰项的过滤指令，并强调实体提取
     payload = {
         "model": model,
-        "prompt": "提取图片中的所有文字，不要加任何解释或格式：",
+        "prompt": "你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。请确保公司名称、日期等关键信息准确。直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式：",
         "images": [base64_img],
         "stream": True,
         "keep_alive": keep_alive
@@ -231,12 +277,21 @@ async def call_ollama(base64_img: str, ollama_cfg: dict = None) -> str:
 
             except asyncio.TimeoutError:
                 if attempt < max_retries:
-                    print(f"[Ollama] 第 {attempt + 1} 次请求超时，3 秒后重试...")
+                    logger.info(f"[Ollama] 第 {attempt + 1} 次请求超时，3 秒后重试...")
                     await asyncio.sleep(3)
                     continue
                 return "[Timeout: Ollama 响应超时，请检查模型是否卡死]"
             except Exception as e:
                 return f"[Ollama Error: {str(e)}]"
+
+_BAIDU_OCR_APIS = [
+    ("accurate_basic", "通用文字识别（高精度版）"),
+    ("general_basic", "通用文字识别（标准版）"),
+    ("webimage", "网络图片文字识别"),
+    ("webimage_loc", "网络图片文字识别（含位置版）"),
+    ("handwriting", "手写文字识别"),
+    ("numbers", "数字识别"),
+]
 
 async def call_baidu(base64_img: str, baidu_cfg: dict) -> str:
     api_key = baidu_cfg.get("apiKey", "")
@@ -246,14 +301,32 @@ async def call_baidu(base64_img: str, baidu_cfg: dict) -> str:
 
     try:
         token = await get_baidu_token(api_key, secret_key)
-        url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic?access_token={token}"
-        params = {"image": base64_img, "language_type": "CHN_ENG"}
-        async with http_session.post(url, data=params) as resp:
-            data = await resp.json()
-            if "error_code" in data:
+        errors = []
+        for api_name, api_label in _BAIDU_OCR_APIS:
+            url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/{api_name}?access_token={token}"
+            params = {"image": base64_img, "language_type": "CHN_ENG", "detect_direction": "true"}
+            async with http_session.post(url, data=params) as resp:
+                data = await resp.json()
+                # Extract text from various Baidu OCR response formats
+                text = ""
+                if "words_result" in data:
+                    for w in data["words_result"]:
+                        text += w.get("words", "")
+                elif "forms_result" in data:
+                    for form in data["forms_result"]:
+                        for body in form.get("body", []):
+                            text += body.get("words", "")
+                if text.strip():
+                    return text
+                error_code = data.get("error_code", 0)
+                if error_code == 17:  # Open api daily request limit reached
+                    errors.append(f"{api_label}: 额度用尽")
+                    continue
+                if error_code == 18:  # QPS limit
+                    errors.append(f"{api_label}: QPS超限")
+                    continue
                 return f"[Baidu Error: {data.get('error_msg', data['error_code'])}]"
-            words = [w.get("words", "") for w in data.get("words_result", [])]
-            return "".join(words)
+        return f"[Baidu Error: 所有接口额度用尽 - {'; '.join(errors)}]"
     except Exception as e:
         return f"[Baidu Error: {str(e)}]"
 
@@ -310,6 +383,69 @@ async def call_openai(base64_img: str, openai_cfg: dict) -> str:
     except Exception as e:
         return f"[OpenAI Error: {str(e)}]"
 
+# ================================
+# PaddleOCR 引擎（针对 M1 Pro 深度优化）
+# ================================
+_paddle_ocr_instance = None
+# 建议单并发，让单个任务占满 CPU 核心以降低单帧延迟
+ocr_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr")
+
+def _get_paddle_ocr():
+    """针对 M1 Pro 极速优化的初始化 (适配 PaddleOCR 3.5.0)"""
+    global _paddle_ocr_instance
+    if _paddle_ocr_instance is None:
+        try:
+            import paddle
+            # 强制开启 CPU 加速
+            paddle.set_flags({'FLAGS_use_mkldnn': True})
+        except Exception:
+            pass
+
+        from paddleocr import PaddleOCR
+        # 强制使用轻量级 mobile 模型，并进一步降低分辨率
+        _paddle_ocr_instance = PaddleOCR(
+            lang='ch',
+            ocr_version='PP-OCRv4',
+            text_det_limit_side_len=480,       # 从 640 降至 480，大幅提速
+            text_recognition_batch_size=1,     # 单帧识别不需要 batch，设为 1 降低首字延迟
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,           # 确保关闭文档矫正（很慢）
+            use_textline_orientation=False     # 确保关闭文字方向检测
+        )
+    return _paddle_ocr_instance
+
+async def call_paddle(base64_img: str) -> str:
+    """使用 OpenCV 极速解码 + PaddleOCR 识别"""
+    try:
+        import numpy as np
+        import cv2
+    except ImportError as e:
+        return f"[PaddleOCR Error: 缺少依赖 {e.name}]"
+
+    try:
+        ocr = _get_paddle_ocr()
+        # 使用 OpenCV 解码，比 PIL 快得多
+        img_bytes = base64.b64decode(base64_img)
+        nparray = np.frombuffer(img_bytes, np.uint8)
+        img_array = cv2.imdecode(nparray, cv2.IMREAD_COLOR)
+
+        if img_array is None:
+            return "[PaddleOCR Error: 图像解码失败]"
+
+        loop = asyncio.get_running_loop()
+        # 执行识别
+        result = await loop.run_in_executor(ocr_executor, lambda: ocr.predict(img_array))
+
+        texts = []
+        if result:
+            # 适配 3.5.0 的返回格式
+            for item in result:
+                if "rec_texts" in item:
+                    texts.extend(item["rec_texts"])
+        return "".join(texts)
+    except Exception as e:
+        return f"[PaddleOCR Error: {str(e)}]"
+
 @app.post("/api/ocr-test")
 async def ocr_test():
     """测试当前 OCR 引擎连通性"""
@@ -349,6 +485,13 @@ async def ocr_test():
             else:
                 result["ok"] = True
                 result["message"] = f"OpenAI 已配置，模型: {openai_cfg.get('model', 'gpt-4o-mini')}"
+        elif provider == "paddle":
+            try:
+                import paddleocr
+                result["ok"] = True
+                result["message"] = f"PaddleOCR 已安装，版本: {paddleocr.__version__}"
+            except ImportError:
+                result["message"] = "PaddleOCR 未安装，请运行: pip install paddleocr"
     except Exception as e:
         result["message"] = str(e)
 
@@ -623,19 +766,35 @@ async def get_target_headers():
 @app.post("/api/open-on-phone")
 async def open_on_phone():
     """通过 ADB 在手机上远程打开扫描器页面"""
-    import subprocess
     try:
-        # 先确保 adb reverse 已建立
-        subprocess.run(["adb", "reverse", "tcp:8080", "tcp:8080"],
-                       capture_output=True, timeout=5)
+        target_serial = _get_adb_target()
+        if not target_serial:
+            return JSONResponse(
+                {"status": "error", "message": "未检测到已连接的 Android 设备"},
+                status_code=500
+            )
+
+        adb_prefix = ["adb", "-s", target_serial]
+
+        # 增强稳定性：先尝试清理旧的映射，再建立新的
+        subprocess.run(adb_prefix + ["reverse", "--remove-all"], capture_output=True, timeout=2)
+        rev_res = subprocess.run(adb_prefix + ["reverse", f"tcp:{SERVER_PORT}", f"tcp:{SERVER_PORT}"],
+                       capture_output=True, text=True, timeout=5)
+
+        if rev_res.returncode != 0:
+            logger.error(f"[adb] reverse failed on {target_serial}: {rev_res.stderr}")
+        else:
+            logger.info(f"[adb] reverse established on {target_serial} for port {SERVER_PORT}")
+
         # 用 adb shell am start 打开手机浏览器
+        target_url = f"http://localhost:{SERVER_PORT}?autostart=1"
         result = subprocess.run(
-            ["adb", "shell", "am", "start", "-a", "android.intent.action.VIEW",
-             "-d", "http://localhost:8080?autostart=1"],
+            adb_prefix + ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", target_url],
             capture_output=True, text=True, timeout=5
         )
+
         if result.returncode == 0:
-            return {"status": "success", "message": "已在手机上打开扫描器"}
+            return {"status": "success", "message": f"已在手机上打开扫描器 ({target_serial})"}
         else:
             return JSONResponse(
                 {"status": "error", "message": result.stderr or "ADB 命令执行失败"},
@@ -687,17 +846,20 @@ async def websocket_ocr(websocket: WebSocket):
         await websocket.accept()
         await websocket.send_json({"status": "error", "text": "服务器繁忙，请稍后重试"})
         await websocket.close()
-        print(f"[WS] 拒绝连接：已达上限 {MAX_WS_CONNECTIONS}")
+        logger.info(f"[WS] 拒绝连接：已达上限 {MAX_WS_CONNECTIONS}")
         return
 
     await websocket.accept()
     active_ws_clients.add(websocket)
-    print(f"[WS] Client connected ({len(active_ws_clients)}/{MAX_WS_CONNECTIONS})")
+    logger.info(f"[WS] Client connected ({len(active_ws_clients)}/{MAX_WS_CONNECTIONS})")
 
     consecutive_timeouts = 0
+    consecutive_empty_frames = 0  # 连续空白/异常小帧计数
+    frame_count = 0
     try:
         while True:
             data = await websocket.receive_text()
+            frame_count += 1
 
             # 兼容带有 data:image/jpeg;base64, 前缀的数据
             if "," in data:
@@ -705,43 +867,85 @@ async def websocket_ocr(websocket: WebSocket):
             else:
                 b64_str = data
 
+            if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} received, size={len(b64_str)} bytes")
+
             # 限制图片大小（base64 约 10MB 原始数据）
             if len(b64_str) > 14_000_000:
+                if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} rejected: too large")
                 await websocket.send_json({"status": "error", "text": "图片过大"})
                 continue
 
+            # === 关键修复：检测异常小的帧（canvas尺寸为0时产生的空白帧特征）===
+            # 正常扫描帧通常在 20KB-100KB+，空白帧约 ~4KB
+            if len(b64_str) < 5000:
+                consecutive_empty_frames += 1
+                if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} suspiciously small ({len(b64_str)} bytes), empty streak: {consecutive_empty_frames}")
+                if consecutive_empty_frames >= 15:
+                    await websocket.send_json({
+                        "status": "error",
+                        "text": "连续发送空白帧，请检查摄像头是否正常工作或刷新页面重试"
+                    })
+                    break
+                # 发送 processing 让前端保持状态，但继续计数
+                await websocket.send_json({"status": "processing", "text": ""})
+                continue
+            else:
+                consecutive_empty_frames = 0
+
             # 使用信号量限制并发调用，加 60 秒超时防止卡死
-            async with ws_semaphore:
-                try:
+            ocr_text = ""
+            try:
+                async with ws_semaphore:
+                    t0 = time.time()
                     ocr_text = await asyncio.wait_for(dispatch_ocr(b64_str), timeout=60)
-                    consecutive_timeouts = 0
-                except asyncio.TimeoutError:
-                    consecutive_timeouts += 1
-                    ocr_text = "[Timeout: OCR 引擎响应超时，请重试]"
-                    if consecutive_timeouts >= 3:
-                        await websocket.send_json({
-                            "status": "error",
-                            "text": "连续多次超时，请刷新页面重试"
-                        })
-                        break
+                    elapsed = int((time.time() - t0) * 1000)
+                    logger.info(f"[ocr] frame=#{frame_count} time={elapsed}ms text='{ocr_text[:50]}'")
+                consecutive_timeouts = 0
+                if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} OCR result: '{ocr_text[:80]}...' (len={len(ocr_text)})")
+            except asyncio.TimeoutError:
+                consecutive_timeouts += 1
+                ocr_text = "[Timeout: OCR 引擎响应超时，请重试]"
+                if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} OCR timeout")
+                if consecutive_timeouts >= 3:
+                    await websocket.send_json({
+                        "status": "error",
+                        "text": "连续多次超时，请刷新页面重试"
+                    })
+                    break
+            except Exception as e:
+                ocr_text = f"[OCR Error: {str(e)}]"
+                if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} OCR exception: {e}")
+
             ocr_text_clean = ocr_text.replace("\n", "").replace(" ", "")
 
             if len(ocr_text_clean) < 2:
+                # 检测结果为空时增加计数，防止无限 processing 循环
+                consecutive_empty_frames += 1
+                if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} sending 'processing' (text too short: '{ocr_text[:40]}'), empty streak: {consecutive_empty_frames}")
+                if consecutive_empty_frames >= 20:
+                    await websocket.send_json({
+                        "status": "error",
+                        "text": "连续识别空白内容，请调整摄像头对准合同文字"
+                    })
+                    break
                 await websocket.send_json({
                     "status": "processing",
                     "text": ocr_text
                 })
                 continue
+            else:
+                consecutive_empty_frames = 0
 
+            if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} sending 'success'")
             await websocket.send_json({
                 "status": "success",
                 "text": ocr_text
             })
 
     except WebSocketDisconnect:
-        print(f"[WS] Client disconnected ({len(active_ws_clients)}/{MAX_WS_CONNECTIONS})")
+        logger.info(f"[WS] Client disconnected ({len(active_ws_clients)}/{MAX_WS_CONNECTIONS})")
     except Exception as e:
-        print(f"[WS] Error: {e}")
+        logger.error(f"[WS] Error: {e}")
         try:
             await websocket.close()
         except: pass
@@ -774,93 +978,274 @@ async def health_check():
         "max_ws": MAX_WS_CONNECTIONS
     }
 
-def _get_local_ips():
-    """获取本机局域网IP地址列表（排除回环地址）"""
-    ips = []
+def _get_adb_target():
+    """获取目标 ADB 设备 serial，优先 USB 设备，解决多设备冲突"""
+    r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
+    usb_serial = None
+    wifi_serial = None
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        if not line or line.startswith("List"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == "device":
+            serial = parts[0]
+            if "usb:" in line:
+                usb_serial = serial
+            elif ":" in serial:
+                wifi_serial = serial
+            else:
+                wifi_serial = serial
+    return usb_serial or wifi_serial
+
+def _get_device_wifi_ip(adb_prefix: list) -> Optional[str]:
+    """通过 adb shell ip route 提取手机 WiFi IP"""
     try:
-        import subprocess
-        result = subprocess.run(['ifconfig'], capture_output=True, text=True)
-        for line in result.stdout.splitlines():
-            if 'inet ' in line and '127.0.0.1' not in line:
-                parts = line.strip().split()
-                for i, p in enumerate(parts):
-                    if p == 'inet' and i + 1 < len(parts):
-                        ip = parts[i + 1]
-                        if ':' in ip:
-                            ip = ip.split(':')[1]
-                        if ip.startswith(('192.168.', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.')):
-                            ips.append(ip)
+        r = subprocess.run(adb_prefix + ["shell", "ip", "route"],
+                           capture_output=True, text=True, timeout=5)
+        for line in r.stdout.splitlines():
+            if "wlan0" not in line:
+                continue
+            parts = line.split()
+            if "src" in parts:
+                idx = parts.index("src")
+                if idx + 1 < len(parts):
+                    return parts[idx + 1]
+            if "via" in parts:
+                idx = parts.index("via")
+                if idx + 1 < len(parts):
+                    return parts[idx + 1]
     except Exception:
         pass
-    # fallback
-    if not ips:
+    try:
+        r2 = subprocess.run(adb_prefix + ["shell", "ifconfig", "wlan0"],
+                            capture_output=True, text=True, timeout=5)
+        for line in r2.stdout.splitlines():
+            if "inet " in line:
+                ip_part = line.split()[1]
+                if ":" in ip_part:
+                    ip_part = ip_part.split(":")[1]
+                return ip_part
+    except Exception:
+        pass
+    return None
+
+
+def _get_all_adb_devices() -> list:
+    """获取所有已连接的 ADB 设备列表，自动去重（当同一手机同时存在 USB 和 WiFi 连接时）"""
+    devices_dict = {}
+    try:
+        r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("List"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2 and parts[1] == "device":
+                serial = parts[0]
+                mode = "usb" if "usb:" in line else "wifi"
+                model = ""
+                for p in parts:
+                    if p.startswith("model:"):
+                        model = p.split(":", 1)[1]
+                        break
+                wifi_ip = None
+                adb_prefix = ["adb", "-s", serial]
+                try:
+                    wifi_ip = _get_device_wifi_ip(adb_prefix)
+                except Exception:
+                    pass
+                
+                device_info = {
+                    "serial": serial,
+                    "mode": mode,
+                    "model": model,
+                    "wifi_ip": wifi_ip,
+                    "status": "connected"
+                }
+
+                # 更加严谨的去重：使用 (model, wifi_ip) 作为联合键
+                # 如果同一型号且 IP 相同，判定为同一台手机
+                key = (model, wifi_ip) if wifi_ip else (None, serial)
+                
+                if key in devices_dict:
+                    # 关键：优先保留物理 USB 连接，其端口转发最稳定
+                    if mode == "usb":
+                        devices_dict[key] = device_info
+                else:
+                    devices_dict[key] = device_info
+                    
+    except Exception as e:
+        logger.error(f"[adb] enumerate failed: {e}")
+    
+    return list(devices_dict.values())
+def _get_local_ips():
+    """获取本机局域网IP地址列表（排除回环地址），带接口名和优先级排序。
+    当存在 VPN/隧道/虚拟接口时，优先返回物理网卡（WiFi/以太网）的IP。
+    返回: [(ip, iface_name, iface_type, priority), ...]
+    """
+    PRIVATE_PREFIXES = (
+        '192.168.', '10.',
+        '172.16.', '172.17.', '172.18.', '172.19.',
+        '172.20.', '172.21.', '172.22.', '172.23.',
+        '172.24.', '172.25.', '172.26.', '172.27.',
+        '172.28.', '172.29.', '172.30.', '172.31.',
+    )
+    results = []
+    seen = set()
+
+    def _iface_priority(name):
+        """接口优先级：物理网卡 > 未知 > VPN/虚拟/隧道"""
+        low = ('utun', 'tun', 'tap', 'docker', 'veth', 'br-', 'lo', 'gif', 'stf', 'anpi')
+        high = ('en0', 'en1', 'en2', 'en3', 'eth0', 'eth1', 'wlan0', 'wlan1', 'wlp')
+        if any(name.startswith(p) for p in high):
+            return 0
+        if any(name.startswith(p) for p in low):
+            return 2
+        return 1
+
+    def _iface_type(name):
+        if name.startswith(('wlan', 'wlp', 'en')):
+            return 'wifi'
+        if name.startswith(('eth', 'enp')):
+            return 'ethernet'
+        if name.startswith(('utun', 'tun', 'tap', 'vpn')):
+            return 'vpn'
+        if any(name.startswith(p) for p in ('docker', 'veth', 'br-', 'lo')):
+            return 'virtual'
+        return 'unknown'
+
+    def _add(ip, iface):
+        if ip in seen or ip == '127.0.0.1':
+            return
+        if not ip.startswith(PRIVATE_PREFIXES):
+            return
+        seen.add(ip)
+        results.append((ip, iface, _iface_type(iface), _iface_priority(iface)))
+
+    # 方法1: ip addr（现代 Linux）
+    try:
+        result = subprocess.run(['ip', 'addr'], capture_output=True, text=True)
+        current_iface = None
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line and not line.startswith('inet'):
+                # 例如 "2: en0: <BROADCAST...>"
+                m = line.split(':')
+                if len(m) >= 2:
+                    current_iface = m[1].strip()
+            elif 'inet ' in line and current_iface:
+                parts = line.split()
+                for i, p in enumerate(parts):
+                    if p == 'inet' and i + 1 < len(parts):
+                        ip = parts[i + 1].split('/')[0]
+                        _add(ip, current_iface)
+    except Exception:
+        pass
+
+    # 方法2: ifconfig（macOS / 旧 Linux）
+    if not results:
+        try:
+            result = subprocess.run(['ifconfig'], capture_output=True, text=True)
+            current_iface = None
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                iface_part = line.split(':')[0]
+                if line[0].isalnum() and ':' in line and ' ' not in iface_part:
+                    # 例如 "en0: flags=..."
+                    current_iface = iface_part.strip()
+                elif 'inet ' in line and current_iface:
+                    parts = line.split()
+                    for i, p in enumerate(parts):
+                        if p == 'inet' and i + 1 < len(parts):
+                            ip = parts[i + 1]
+                            if ':' in ip:
+                                ip = ip.split(':')[1]
+                            _add(ip, current_iface)
+        except Exception:
+            pass
+
+    # 方法3: UDP socket 兜底
+    if not results:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.settimeout(0)
             try:
                 s.connect(('10.254.254.254', 1))
                 ip = s.getsockname()[0]
-                if ip != '127.0.0.1':
-                    ips.append(ip)
+                _add(ip, 'default')
             except Exception:
                 pass
             finally:
                 s.close()
         except Exception:
             pass
-    return list(dict.fromkeys(ips))  # 去重保持顺序
+
+    # 按优先级排序（物理网卡优先）
+    results.sort(key=lambda x: x[3])
+    return results
 
 @app.get("/api/network-info")
 async def network_info():
     """返回本机局域网IP，供手机WiFi模式连接使用"""
-    ips = _get_local_ips()
+    iface_list = _get_local_ips()  # [(ip, name, type, priority), ...]
+    plain_ips = [r[0] for r in iface_list]
+    best_ip = plain_ips[0] if plain_ips else None
     return {
-        "port": 8080,
-        "local_ips": ips,
-        "wifi_url": f"http://{ips[0]}:8080" if ips else None,
-        "usb_url": "http://localhost:8080"
+        "port": SERVER_PORT,
+        "local_ips": plain_ips,
+        "interfaces": [
+            {"ip": r[0], "name": r[1], "type": r[2]} for r in iface_list
+        ],
+        "wifi_url": f"http://{best_ip}:{SERVER_PORT}" if best_ip else None,
+        "usb_url": f"http://localhost:{SERVER_PORT}"
     }
+
+@app.get("/api/qr-code")
+async def qr_code(data: str):
+    """服务端生成 QR 码 PNG（避免依赖外部 CDN，支持纯内网环境）"""
+    try:
+        import qrcode
+        from fastapi.responses import StreamingResponse
+        img = qrcode.make(data)
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return StreamingResponse(buf, media_type="image/png")
+    except ImportError:
+        return JSONResponse(
+            {"error": "qrcode module not installed. Run: pip install qrcode[pil]"},
+            status_code=503
+        )
 
 @app.get("/api/adb-wifi-status")
 async def adb_wifi_status():
     """检查 ADB 连接状态和手机 WiFi IP"""
     result = {"connected": False, "usb_device": None, "wifi_ip": None, "mode": None}
     try:
-        # 检查是否有 USB 设备
         r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
-        lines = [l.strip() for l in r.stdout.splitlines() if l.strip() and not l.strip().startswith("List")]
-        for line in lines:
+        target_serial = None
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("List"):
+                continue
             parts = line.split()
-            if len(parts) >= 2:
+            if len(parts) >= 2 and parts[1] == "device":
                 serial = parts[0]
-                status = parts[1]
-                if status == "device":
-                    if "usb:" in line:
-                        result["usb_device"] = serial
-                        result["mode"] = "usb"
-                    else:
-                        result["mode"] = "wifi"
-                    result["connected"] = True
-                    break
-        # 获取手机 WiFi IP
-        if result["connected"]:
-            r2 = subprocess.run(["adb", "shell", "ip", "route"], capture_output=True, text=True, timeout=5)
-            for line in r2.stdout.splitlines():
-                if "wlan0" in line or "wifi" in line.lower():
-                    parts = line.split()
-                    if len(parts) >= 9:
-                        result["wifi_ip"] = parts[8]
-                        break
-            # fallback
-            if not result["wifi_ip"]:
-                r3 = subprocess.run(["adb", "shell", "ifconfig", "wlan0"], capture_output=True, text=True, timeout=5)
-                for line in r3.stdout.splitlines():
-                    if "inet " in line:
-                        ip_part = line.split()[1]
-                        if ":" in ip_part:
-                            ip_part = ip_part.split(":")[1]
-                        result["wifi_ip"] = ip_part
-                        break
+                target_serial = serial
+                if "usb:" in line:
+                    result["usb_device"] = serial
+                    result["mode"] = "usb"
+                else:
+                    result["mode"] = "wifi"
+                result["connected"] = True
+                break
+        if result["connected"] and target_serial:
+            wifi_ip = _get_device_wifi_ip(["adb", "-s", target_serial])
+            if wifi_ip:
+                result["wifi_ip"] = wifi_ip
     except Exception as e:
         result["error"] = str(e)
     return result
@@ -870,20 +1255,17 @@ async def adb_wifi_status():
 async def adb_wifi_start():
     """开启 ADB 网络模式 (adb tcpip 5555)"""
     try:
-        r = subprocess.run(["adb", "tcpip", "5555"], capture_output=True, text=True, timeout=10)
+        target = _get_adb_target()
+        if not target:
+            return {"status": "error", "message": "未检测到已连接的 Android 设备"}
+        adb_prefix = ["adb", "-s", target]
+        r = subprocess.run(adb_prefix + ["tcpip", "5555"], capture_output=True, text=True, timeout=10)
         if r.returncode == 0:
-            # 获取手机 WiFi IP
-            wifi_ip = None
-            try:
-                r2 = subprocess.run(["adb", "shell", "ip", "route"], capture_output=True, text=True, timeout=5)
-                for line in r2.stdout.splitlines():
-                    if "wlan0" in line:
-                        parts = line.split()
-                        if len(parts) >= 9:
-                            wifi_ip = parts[8]
-                            break
-            except Exception:
-                pass
+            # tcpip 后 ADB daemon 重启，连接短暂断开，等 2 秒再获取 IP
+            import time; await asyncio.sleep(2)
+            wifi_ip = _get_device_wifi_ip(adb_prefix)
+            global adb_wifi_ip_cache
+            adb_wifi_ip_cache = wifi_ip
             return {"status": "success", "message": "ADB 网络模式已开启，请拔掉数据线", "wifi_ip": wifi_ip, "port": 5555}
         else:
             return {"status": "error", "message": r.stderr or "adb tcpip 失败"}
@@ -892,32 +1274,35 @@ async def adb_wifi_start():
 
 
 @app.post("/api/adb-wifi-connect")
-async def adb_wifi_connect():
-    """通过 WiFi 连接 ADB 并设置端口映射"""
+async def adb_wifi_connect(req: AdbWifiConnectReq):
+    """通过 WiFi 连接 ADB 并设置端口映射。
+    拔线后 _get_adb_target() 会返回 None，因此不再依赖它检测设备，
+    而是直接 trust 前端传来的 wifi_ip，adb connect 后再 reverse。
+    """
+    wifi_ip = req.wifi_ip
+    if not wifi_ip:
+        target = _get_adb_target()
+        if target:
+            wifi_ip = _get_device_wifi_ip(["adb", "-s", target])
+    # 兜底：使用 tcpip 时缓存的 IP
+    if not wifi_ip and adb_wifi_ip_cache:
+        wifi_ip = adb_wifi_ip_cache
+    if not wifi_ip:
+        return {"status": "error", "message": "缺少手机 WiFi IP，请重新开启无线调试"}
+
     try:
-        # 先获取手机 WiFi IP
-        wifi_ip = None
-        try:
-            r = subprocess.run(["adb", "shell", "ip", "route"], capture_output=True, text=True, timeout=5)
-            for line in r.stdout.splitlines():
-                if "wlan0" in line:
-                    parts = line.split()
-                    if len(parts) >= 9:
-                        wifi_ip = parts[8]
-                        break
-        except Exception:
-            pass
-
-        if not wifi_ip:
-            return {"status": "error", "message": "无法获取手机 WiFi IP，请确保手机已连接 WiFi"}
-
-        # 连接 WiFi ADB
-        r1 = subprocess.run(["adb", "connect", f"{wifi_ip}:5555"], capture_output=True, text=True, timeout=10)
-        if "connected" not in r1.stdout.lower() and "already" not in r1.stdout.lower():
+        # 连接 WiFi ADB（拔线后这是唯一可靠的连接方式）
+        wifi_target = f"{wifi_ip}:5555"
+        r1 = subprocess.run(["adb", "connect", wifi_target], capture_output=True, text=True, timeout=10)
+        out = r1.stdout.lower()
+        # 兼容中英文输出: "connected to" / "already connected" / "已连接到"
+        if not any(k in out for k in ("connected", "already", "已连接")):
             return {"status": "error", "message": f"连接失败: {r1.stdout or r1.stderr}"}
 
-        # 设置端口映射
-        r2 = subprocess.run(["adb", "reverse", "tcp:8080", "tcp:8080"], capture_output=True, text=True, timeout=5)
+        # 设置端口映射（使用 WiFi serial，确保 USB 拔掉后仍然有效）
+        wifi_prefix = ["adb", "-s", wifi_target]
+        r2 = subprocess.run(wifi_prefix + ["reverse", "tcp:8080", "tcp:8080"],
+                            capture_output=True, text=True, timeout=5)
 
         return {
             "status": "success",
@@ -929,6 +1314,120 @@ async def adb_wifi_connect():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
+
+# === 多设备 ADB 管理 ===
+@app.get("/api/adb-devices")
+async def adb_devices_list():
+    """列出所有已连接的 ADB 设备"""
+    devices = _get_all_adb_devices()
+    return {"devices": devices, "count": len(devices)}
+
+@app.post("/api/adb-wifi-start-all")
+async def adb_wifi_start_all():
+    """批量开启所有 USB 设备的 ADB 网络模式"""
+    devices = _get_all_adb_devices()
+    usb_devices = [d for d in devices if d["mode"] == "usb"]
+    if not usb_devices:
+        return {"status": "error", "message": "未检测到 USB 连接的设备"}
+
+    results = []
+    for d in usb_devices:
+        serial = d["serial"]
+        try:
+            r = subprocess.run(["adb", "-s", serial, "tcpip", "5555"],
+                             capture_output=True, text=True, timeout=10)
+            if r.returncode == 0:
+                await asyncio.sleep(2)
+                wifi_ip = _get_device_wifi_ip(["adb", "-s", serial])
+                results.append({"serial": serial, "status": "success", "wifi_ip": wifi_ip})
+                logger.info(f"[adb] tcpip 5555 OK for {serial}, wifi_ip={wifi_ip}")
+            else:
+                results.append({"serial": serial, "status": "error", "message": r.stderr})
+                logger.error(f"[adb] tcpip 5555 failed for {serial}: {r.stderr}")
+        except Exception as e:
+            results.append({"serial": serial, "status": "error", "message": str(e)})
+            logger.error(f"[adb] tcpip exception for {serial}: {e}")
+
+    success_count = sum(1 for r in results if r["status"] == "success")
+    return {
+        "status": "success" if success_count > 0 else "error",
+        "message": f"已开启 {success_count}/{len(usb_devices)} 台设备的网络模式",
+        "results": results
+    }
+
+@app.post("/api/adb-wifi-connect-all")
+async def adb_wifi_connect_all():
+    """批量连接所有已知 WiFi 设备并设置端口映射"""
+    devices = _get_all_adb_devices()
+    # 收集所有设备的 WiFi IP（包括已连接的 WiFi 设备和缓存中的 USB 设备 IP）
+    targets = []
+    for d in devices:
+        if d["mode"] == "wifi" and ":" in d["serial"]:
+            # 已通过 WiFi 连接的设备，确保 reverse 存在
+            targets.append({"serial": d["serial"], "wifi_ip": d["serial"].split(":")[0]})
+        elif d["wifi_ip"]:
+            # USB 设备但已知 WiFi IP
+            targets.append({"serial": d["serial"], "wifi_ip": d["wifi_ip"]})
+
+    if not targets:
+        return {"status": "error", "message": "未发现可连接的 WiFi 设备（请先开启无线调试）"}
+
+    results = []
+    for t in targets:
+        wifi_ip = t["wifi_ip"]
+        wifi_target = f"{wifi_ip}:5555"
+        try:
+            # Connect
+            r1 = subprocess.run(["adb", "connect", wifi_target],
+                              capture_output=True, text=True, timeout=10)
+            out = r1.stdout.lower()
+            connected = any(k in out for k in ("connected", "already", "已连接"))
+            
+            # Reverse
+            r2 = subprocess.run(["adb", "-s", wifi_target, "reverse", "tcp:8080", "tcp:8080"],
+                              capture_output=True, text=True, timeout=5)
+            
+            results.append({
+                "wifi_ip": wifi_ip,
+                "connect": "ok" if connected else r1.stdout.strip(),
+                "reverse": "ok" if r2.returncode == 0 else r2.stderr.strip()
+            })
+            logger.info(f"[adb] connect+reverse {wifi_target}: connect={connected} reverse={r2.returncode==0}")
+        except Exception as e:
+            results.append({"wifi_ip": wifi_ip, "connect": "error", "message": str(e)})
+            logger.error(f"[adb] connect+reverse {wifi_target} failed: {e}")
+
+    ok_count = sum(1 for r in results if r.get("connect") == "ok")
+    return {
+        "status": "success" if ok_count > 0 else "error",
+        "message": f"已连接 {ok_count}/{len(targets)} 台设备",
+        "results": results
+    }
+
+@app.post("/api/open-on-phone/{serial}")
+async def open_on_phone_by_serial(serial: str):
+    """在指定设备上打开扫描器页面"""
+    try:
+        adb_prefix = ["adb", "-s", serial]
+        
+        # 清理并重建映射
+        subprocess.run(adb_prefix + ["reverse", "--remove-all"], capture_output=True, timeout=2)
+        rev_res = subprocess.run(adb_prefix + ["reverse", f"tcp:{SERVER_PORT}", f"tcp:{SERVER_PORT}"],
+                       capture_output=True, text=True, timeout=5)
+        
+        target_url = f"http://localhost:{SERVER_PORT}?autostart=1"
+        result = subprocess.run(
+            adb_prefix + ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", target_url],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            logger.info(f"[adb] opened browser on {serial}")
+            return {"status": "success", "message": f"已在设备 {serial} 上打开扫描器"}
+        else:
+            return JSONResponse({"status": "error", "message": result.stderr}, status_code=500)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 @app.get("/api/model-status")
 async def model_status():
@@ -963,6 +1462,13 @@ async def model_status():
             openai_cfg = cfg["ocr"].get("openai", {})
             result["ready"] = bool(openai_cfg.get("apiKey"))
             result["message"] = "已配置" if result["ready"] else "未配置"
+        elif provider == "paddle":
+            try:
+                import paddleocr
+                result["ready"] = True
+                result["message"] = f"PaddleOCR {paddleocr.__version__} 就绪"
+            except ImportError:
+                result["message"] = "未安装 paddleocr"
     except Exception:
         result["message"] = "连接失败"
 
@@ -1005,24 +1511,60 @@ async def _do_model_load(base_url: str, model: str, keep_alive: str):
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, json=payload, timeout=timeout) as resp:
                 if resp.status == 200:
-                    print(f"✅ 模型 {model} 加载完成")
+                    logger.info(f"✅ 模型 {model} 加载完成")
                 else:
-                    print(f"⚠️ 模型加载失败: HTTP {resp.status}")
+                    logger.warning(f"⚠️ 模型加载失败: HTTP {resp.status}")
     except asyncio.TimeoutError:
-        print(f"⚠️ 模型加载超时，模型可能已卡死")
+        logger.warning(f"⚠️ 模型加载超时，模型可能已卡死")
     except Exception as e:
-        print(f"⚠️ 模型加载异常: {e}")
+        logger.warning(f"⚠️ 模型加载异常: {e}")
+
+# === 日志 API ===
+@app.get("/api/logs")
+async def get_logs(lines: int = 100):
+    """读取最近 N 行日志"""
+    try:
+        if not os.path.exists(LOG_FILE):
+            return {"logs": "", "lines": 0}
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            all_lines = f.readlines()
+        recent = all_lines[-lines:]
+        return {"logs": "".join(recent), "lines": len(recent)}
+    except Exception as e:
+        return {"logs": f"Error reading logs: {e}", "lines": 0}
+
+@app.get("/api/logs/download")
+async def download_logs():
+    """下载完整日志文件"""
+    if os.path.exists(LOG_FILE):
+        return FileResponse(LOG_FILE, filename="scanner.log", media_type="text/plain")
+    return JSONResponse({"error": "Log file not found"}, status_code=404)
 
 # === 根路由（显式声明，优先于 StaticFiles mount） ===
 @app.get("/")
 async def root():
-    return FileResponse(os.path.join(BASE_DIR, "index.html"))
+    return FileResponse(
+        os.path.join(BASE_DIR, "index.html"),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
 
-# === 静态文件（StaticFiles 自带路径穿越防护） ===
-# FastAPI 显式路由优先于 mount，无需额外过滤
-app.mount("/", StaticFiles(directory=BASE_DIR), name="static")
+# === 静态文件（禁用 HTML/JS/CSS 缓存，防止手机浏览器缓存旧版本） ===
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if path.endswith((".html", ".js", ".css")):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+app.mount("/", NoCacheStaticFiles(directory=BASE_DIR), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 FastAPI Server starting on http://localhost:8080")
-    uvicorn.run("server:app", host="0.0.0.0", port=8080, log_level="info")
+    logger.info(f"🚀 FastAPI Server starting on http://localhost:{SERVER_PORT}")
+    uvicorn.run("server:app", host="0.0.0.0", port=SERVER_PORT, log_level="info")
