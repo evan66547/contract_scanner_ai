@@ -1,6 +1,6 @@
 # 🎯 Contract Scanner AI
 
-[![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/evan66547/contract_scanner_ai/blob/main/LICENSE)
+[![license](https://img.shields.io/badge/license-Personal_Use-important.svg)](https://github.com/evan66547/contract_scanner_ai/blob/main/LICENSE)
 [![python](https://img.shields.io/badge/python-3.10~3.12-yellow.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-black.svg)](https://ollama.com/)
