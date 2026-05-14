@@ -4,9 +4,16 @@ echo "=========================================="
 echo " 🚀 Starting Contract Scanner AI (Mac/Linux)"
 echo "=========================================="
 
-# 1. Check Python 3
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Error: Python 3 is not installed. Please install Python 3.9+."
+# 1. Check Python 3.12 (PaddleOCR requires <=3.12)
+PYTHON_CMD=""
+for p in python3.12 python3.11 python3.10; do
+    if command -v $p &> /dev/null; then
+        PYTHON_CMD=$p
+        break
+    fi
+done
+if [ -z "$PYTHON_CMD" ]; then
+    echo "❌ Error: Python 3.10-3.12 required (PaddleOCR incompatible with 3.13+)."
     exit 1
 fi
 
@@ -14,8 +21,8 @@ VENV_DIR=".venv"
 
 # 2. Check and Create Virtual Environment
 if [ ! -d "$VENV_DIR" ]; then
-    echo "👉 Creating virtual environment ($VENV_DIR)..."
-    python3 -m venv $VENV_DIR
+    echo "👉 Creating virtual environment ($VENV_DIR) with $PYTHON_CMD..."
+    $PYTHON_CMD -m venv $VENV_DIR
 fi
 
 # 3. Activate Virtual Environment

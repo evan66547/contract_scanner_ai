@@ -360,8 +360,13 @@ function applyI18n() {
     });
 
     const langBtn = document.getElementById('lang-toggle');
+    const langLabel = document.getElementById('lang-label');
     if (langBtn) {
-        langBtn.textContent = currentLang === 'en' ? '🇨🇳 中文' : '🇬🇧 EN';
+        // Update menu item label
+        if (langLabel) langLabel.textContent = currentLang === 'en' ? '切换语言' : 'Switch Language';
+        // Update icon
+        const icon = langBtn.querySelector('.menu-item-icon');
+        if (icon) icon.textContent = currentLang === 'en' ? '🇨🇳' : '🇬🇧';
     }
 }
 

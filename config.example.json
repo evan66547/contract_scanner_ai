@@ -6,10 +6,10 @@
     "frameRate": 30
   },
   "roi": {
-    "x": 10,
-    "y": 12,
-    "width": 80,
-    "height": 25
+    "x": 5,
+    "y": 2,
+    "width": 90,
+    "height": 20
   },
   "matching": {
     "minConfidence": 0,
@@ -19,7 +19,7 @@
     "minKeywordLength": 5
   },
   "ui": {
-    "showDebug": false,
+    "showDebug": true,
     "showOverlay": true
   },
   "ocr": {
@@ -36,6 +36,9 @@
     "ocrspace": {
       "apiKey": "",
       "language": "chs"
+    },
+    "paddle": {
+      "useGpu": false
     }
   }
 }

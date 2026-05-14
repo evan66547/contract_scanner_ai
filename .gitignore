@@ -4,8 +4,10 @@
 # Python
 __pycache__/
 *.py[cod]
+.venv/
 
 # Sensitive Data
+config.json
 targets.json
 companies.json
 companies.json.bak
@@ -13,5 +15,11 @@ companies.json.bak
 *.csv
 *.xls
 
-# Config overrides (if any)
-config.local.json
+# Logs
+logs/
+*.log
+
+# Temp files
+*.png
+*.bak
+.superpowers/

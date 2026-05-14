@@ -1,7 +1,7 @@
 # 🎯 Contract Scanner AI
 
-[![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/evan66547/contract_scanner_ai/blob/main/LICENSE)
-[![python](https://img.shields.io/badge/python-3.9+-yellow.svg)](https://www.python.org/downloads/)
+[![license](https://img.shields.io/badge/license-Personal_Use-important.svg)](https://github.com/evan66547/contract_scanner_ai/blob/main/LICENSE)
+[![python](https://img.shields.io/badge/python-3.10~3.12-yellow.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-black.svg)](https://ollama.com/)
 
@@ -14,10 +14,13 @@
 
 **Contract Scanner AI** is a real-time, hardware-independent intelligent scanning system. It turns any mobile browser into a wireless scanner, streaming camera frames via WebSockets to a PC/Mac backend. The backend runs OCR inferences (via local Ollama or cloud APIs), and the frontend performs dynamic fuzzy matching against a loaded target list (e.g., enterprise contracts, logistics entities).
 
+> **Origin Story**: As a legal professional handling debt recovery work, I often faced the daunting task of searching for original evidence documents among mountains of paperwork. This tool was born out of that frustration — to turn hours of manual searching into seconds of automated scanning.
+
 ### ✨ Key Technical Features
 
 - **🧠 Multi-Engine OCR Backend (FastAPI)**
-  - Seamlessly switch between **Ollama (Local GLM-OCR)**, **Baidu Cloud OCR**, and **OCR.Space**.
+  - Seamlessly switch between **Ollama (Local GLM-OCR)**, **Baidu Cloud OCR**, **PaddleOCR (Offline)**, and **OCR.Space**.
+  - Baidu OCR: 6-API automatic fallback chain — when one API's free quota is exhausted, it automatically switches to the next available endpoint.
   - Built-in VRAM protection: Auto-warms up local models, strictly limits concurrent Ollama inferences to prevent Out-Of-Memory crashes, and multiplexes WebSockets.
 - **⚡ Real-Time WebSocket Streaming**
   - Mobile client (`app.js`) extracts camera frames via HTML5 Canvas and streams them to the server continuously without REST overhead.
@@ -33,8 +36,8 @@
 ### 🚀 Quick Start
 
 **1. Prerequisites**
-- [Python 3.9+](https://www.python.org/downloads/) & [Ollama](https://ollama.com/) installed.
-- (Optional) Pull the vision model: `ollama run glm-ocr`
+- [Python 3.10-3.12](https://www.python.org/downloads/) installed. (PaddleOCR requires Python <=3.12)
+- (Optional) [Ollama](https://ollama.com/) for local AI OCR: `ollama run glm-ocr`
 
 **2. Run the Server**
 ```bash
@@ -58,10 +61,13 @@ cd contract_scanner_ai
 
 **Contract Scanner AI** 是一套支持硬件解耦、支持实时视频流处理的智能目标实体追猎系统。它通过 WebSocket 将手机浏览器的相机帧实时串流至 PC/Mac 后端。后端利用本地大模型或云端 OCR 提取文本后，前端即时执行模糊匹配，实现“点石成金”的智能扫码体验。
 
+> **开发背景**：作为一个法务，在做清欠工作寻找证据原件的时候，常常面对成堆的文件，一份一份翻找既耗时又容易遗漏。这个工具就是为了解决这个痛点而开发的——用手机摄像头扫一扫，秒级定位目标文件。
+
 ### ✨ 核心技术架构
 
 - **🧠 多引擎 OCR 后端 (基于 FastAPI)**
-  - 支持热切换 3 种底层引擎：**Ollama (本地 GLM-OCR 等)**、**百度智能云 OCR**、以及 **OCR.Space**。
+  - 支持热切换 4 种底层引擎：**Ollama (本地 GLM-OCR 等)**、**百度智能云 OCR**、**PaddleOCR (纯离线)**、以及 **OCR.Space**。
+  - 百度 OCR 内置 6 个 API 自动降级链：单个接口免费额度用尽时，自动切换到下一个可用接口，最大化利用免费资源。
   - **显存保护机制**：服务器启动时自动侦测并预热本地模型；针对 Ollama 引擎严格实施 `Semaphore(1)` 并发控制，完美杜绝 VRAM 溢出导致的进程崩溃。
 - **⚡ WebSocket 实时推流识别**
   - 手机端 (`app.js`) 灵活调用 HTML5 `mediaDevices` 抓取定制化感兴趣区域 (ROI) 的视频帧，借助 WebSocket 双向通道达成极低延迟的数据交换。
@@ -77,8 +83,8 @@ cd contract_scanner_ai
 ### 🚀 极速起步
 
 **1. 前置环境**
-- 安装 [Python 3.9+](https://www.python.org/downloads/) 与 [Ollama](https://ollama.com/)
-- (可选) 下载默认的本地视觉模型：`ollama run glm-ocr`
+- 安装 [Python 3.10-3.12](https://www.python.org/downloads/)（PaddleOCR 不兼容 3.13+）
+- (可选) 安装 [Ollama](https://ollama.com/) 用于本地 AI OCR：`ollama run glm-ocr`
 
 **2. 启动服务**
 ```bash
