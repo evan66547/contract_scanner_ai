@@ -55,7 +55,7 @@ ocr_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """管理应用生命周期：启动时创建 HTTP Session，预热模型，关闭时释放理论"""
+    """管理应用生命周期：启动时创建 HTTP Session，预热模型，关闭时释放资源"""
     global http_session, ws_semaphore
     timeout = aiohttp.ClientTimeout(total=60, connect=10)
     http_session = aiohttp.ClientSession(timeout=timeout)
@@ -325,7 +325,7 @@ async def call_baidu(base64_img: str, baidu_cfg: dict) -> str:
                 if error_code == 18:  # QPS limit
                     errors.append(f"{api_label}: QPS超限")
                     continue
-                return f"[Baidu Error: {data.get('error_msg', f'code {data.get(\"error_code\", \"unknown\")}')}"
+                return f"[Baidu Error: {data.get('error_msg', f'code {data.get('error_code', 'unknown')}')}]"
         return f"[Baidu Error: 所有接口额度用尽 - {'; '.join(errors)}]"
     except Exception as e:
         return f"[Baidu Error: {str(e)}]"
@@ -382,13 +382,6 @@ async def call_openai(base64_img: str, openai_cfg: dict) -> str:
             return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"[OpenAI Error: {str(e)}]"
-
-# ================================
-# PaddleOCR 引擎（针对 M1 Pro 深度优化）
-# ================================
-_paddle_ocr_instance = None
-# 建议单并发，让单个任务占满 CPU 核心以降低单帧延迟
-ocr_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr")
 
 def _get_paddle_ocr():
     """针对 M1 Pro 极速优化的初始化 (适配 PaddleOCR 3.5.0)"""
@@ -1301,7 +1294,7 @@ async def adb_wifi_connect(req: AdbWifiConnectReq):
 
         # 设置端口映射（使用 WiFi serial，确保 USB 拔掉后仍然有效）
         wifi_prefix = ["adb", "-s", wifi_target]
-        r2 = subprocess.run(wifi_prefix + ["reverse", "tcp:8080", "tcp:8080"],
+        r2 = subprocess.run(wifi_prefix + ["reverse", f"tcp:{SERVER_PORT}", f"tcp:{SERVER_PORT}"],
                             capture_output=True, text=True, timeout=5)
 
         return {
@@ -1385,7 +1378,7 @@ async def adb_wifi_connect_all():
             connected = any(k in out for k in ("connected", "already", "已连接"))
             
             # Reverse
-            r2 = subprocess.run(["adb", "-s", wifi_target, "reverse", "tcp:8080", "tcp:8080"],
+            r2 = subprocess.run(["adb", "-s", wifi_target, "reverse", f"tcp:{SERVER_PORT}", f"tcp:{SERVER_PORT}"],
                               capture_output=True, text=True, timeout=5)
             
             results.append({
