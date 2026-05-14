@@ -1160,7 +1160,22 @@ def _get_local_ips():
         except Exception:
             pass
 
-    # 方法3: UDP socket 兜底
+    # 方法3: ipconfig（Windows）
+    if not results:
+        try:
+            result = subprocess.run(['ipconfig'], capture_output=True, text=True)
+            current_iface = None
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if line and line.endswith(':'):
+                    current_iface = line.rstrip(':')
+                elif 'IPv4 Address' in line and current_iface:
+                    ip = line.split(':')[-1].strip()
+                    _add(ip, current_iface)
+        except Exception:
+            pass
+
+    # 方法4: UDP socket 兜底
     if not results:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
