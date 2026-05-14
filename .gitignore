@@ -23,3 +23,6 @@ logs/
 *.png
 *.bak
 .superpowers/
+
+# Windows deploy auto-downloads (ADB platform-tools ~10MB)
+tools/
