@@ -16,6 +16,8 @@
 
 > **Origin Story**: As a legal professional handling debt recovery work, I often faced the daunting task of searching for original evidence documents among mountains of paperwork. This tool was born out of that frustration — to turn hours of manual searching into seconds of automated scanning.
 
+> **Origin Story**: As a legal professional handling debt recovery work, I often faced the daunting task of searching for original evidence documents among mountains of paperwork. This tool was born out of that frustration — to turn hours of manual searching into seconds of automated scanning.
+
 ### ✨ Key Technical Features
 
 - **🧠 Multi-Engine OCR Backend (FastAPI)**
@@ -60,6 +62,8 @@ cd contract_scanner_ai
 ## 🇨🇳 中文
 
 **Contract Scanner AI** 是一个基于 OCR 的文本扫描与匹配工具。系统利用移动端网页浏览器采集摄像头画面，通过 WebSocket 将视频帧实时传输至运行在 PC/Mac 的本地服务端。服务端调用 OCR 引擎（本地 Ollama 模型或云端 API）提取画面文本，前端随后将提取到的文本与预设的目标清单（如企业名称、合同编号）进行模糊匹配，并在匹配成功时提供实时反馈。
+
+> **开发背景**：作为一个法务，在做清欠工作寻找证据原件的时候，常常面对成堆的文件，一份一份翻找既耗时又容易遗漏。这个工具就是为了解决这个痛点而开发的——用手机摄像头扫一扫，秒级定位目标文件。
 
 > **开发背景**：作为一个法务，在做清欠工作寻找证据原件的时候，常常面对成堆的文件，一份一份翻找既耗时又容易遗漏。这个工具就是为了解决这个痛点而开发的——用手机摄像头扫一扫，秒级定位目标文件。
 
