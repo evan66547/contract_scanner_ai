@@ -270,8 +270,9 @@
         .btn-group .btn { flex: 1 1 0%; }
 
         .preview-canvas {
-            width: 100%; height: 180px; border: 1px solid var(--border-color); border-radius: 12px;
-            margin-top: 12px; background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            width: 100%; max-width: 220px; aspect-ratio: 9 / 16;
+            margin: 12px auto 0; border: 1px solid var(--border-color); border-radius: 12px;
+            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
             position: relative; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
         .roi-overlay {
@@ -641,30 +642,35 @@
 <div>
 <div class="form-group" style="margin-bottom:12px;">
 <label><span data-i18n="admin.lbl.roix">ROI X</span></label>
-<input id="roi-x" max="50" min="0" step="1" style="width:140px;" type="range"/>
+<input id="roi-x" max="90" min="0" step="1" style="width:140px;" type="range"/>
 <span class="range-value" id="roi-x-val">10%</span>
 </div>
 <div class="form-group" style="margin-bottom:12px;">
 <label><span data-i18n="admin.lbl.roiy">ROI Y</span></label>
-<input id="roi-y" max="60" min="0" step="1" style="width:140px;" type="range"/>
+<input id="roi-y" max="90" min="0" step="1" style="width:140px;" type="range"/>
 <span class="range-value" id="roi-y-val">38%</span>
 </div>
 </div>
 <div>
 <div class="form-group" style="margin-bottom:12px;">
 <label><span data-i18n="admin.lbl.roiw">ROI Width</span></label>
-<input id="roi-w" max="100" min="20" step="5" style="width:140px;" type="range"/>
+<input id="roi-w" max="100" min="10" step="1" style="width:140px;" type="range"/>
 <span class="range-value" id="roi-w-val">80%</span>
 </div>
 <div class="form-group" style="margin-bottom:12px;">
 <label><span data-i18n="admin.lbl.roih">ROI Height</span></label>
-<input id="roi-h" max="80" min="10" step="5" style="width:140px;" type="range"/>
+<input id="roi-h" max="100" min="10" step="1" style="width:140px;" type="range"/>
 <span class="range-value" id="roi-h-val">25%</span>
 </div>
 </div>
 </div>
 <div class="preview-canvas" id="roi-preview">
 <div class="roi-overlay" id="roi-rect"></div>
+</div>
+<div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+    <button type="button" class="btn btn-secondary btn-sm" onclick="applyRoiPreset(5,5,90,48)">上半区</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="applyRoiPreset(15,30,70,40)">中央区域</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="applyRoiPreset(0,0,100,100)">全屏</button>
 </div>
 <div class="info-box">
 <i data-lucide="scan" style="color:var(--success-color)"></i>
@@ -864,10 +870,10 @@
         }
 
         function updateRoiPreview() {
-            const x = document.getElementById('roi-x').value;
-            const y = document.getElementById('roi-y').value;
-            const w = document.getElementById('roi-w').value;
-            const h = document.getElementById('roi-h').value;
+            const x = parseFloat(document.getElementById('roi-x').value);
+            const y = parseFloat(document.getElementById('roi-y').value);
+            const w = parseFloat(document.getElementById('roi-w').value);
+            const h = parseFloat(document.getElementById('roi-h').value);
 
             document.getElementById('roi-x-val').innerText = x + '%';
             document.getElementById('roi-y-val').innerText = y + '%';
@@ -879,6 +885,20 @@
             rect.style.top = y + '%';
             rect.style.width = w + '%';
             rect.style.height = h + '%';
+
+            const overflow = (x + w > 100) || (y + h > 100);
+            rect.style.borderColor = overflow ? 'var(--danger-color)' : 'rgba(16, 185, 129, 0.9)';
+            rect.style.boxShadow = overflow
+                ? '0 0 0 2000px rgba(239, 68, 68, 0.15)'
+                : '0 0 0 2000px rgba(15, 23, 42, 0.6)';
+        }
+
+        function applyRoiPreset(x, y, w, h) {
+            document.getElementById('roi-x').value = x;
+            document.getElementById('roi-y').value = y;
+            document.getElementById('roi-w').value = w;
+            document.getElementById('roi-h').value = h;
+            updateRoiPreview();
         }
 
         function updateMatchRatioLabel() {
