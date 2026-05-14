@@ -1301,7 +1301,7 @@ async def adb_wifi_connect(req: AdbWifiConnectReq):
             "status": "success",
             "message": "WiFi ADB 连接成功",
             "wifi_ip": wifi_ip,
-            "phone_url": "http://localhost:8080",
+            "phone_url": f"http://localhost:{SERVER_PORT}",
             "adb_output": r1.stdout.strip()
         }
     except Exception as e:
