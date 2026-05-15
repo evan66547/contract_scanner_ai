@@ -27,11 +27,14 @@
 - **🎯 Client-Side Fuzzy Matching**
   - Matches OCR results against `targets.json` entirely in the browser using tunable **Levenshtein distance**, prefix verification, and dynamic Region of Interest (ROI) cropping.
   - Triggers native **Haptic Feedback (Vibration)** upon successful hits.
+  - Match result preview shows raw OCR text, matched target name, confidence score, and match type for instant verification.
 - **📊 Smart Admin Dashboard**
   - Modern `admin.html` control panel. Drag-and-drop Excel/CSV files for auto-mapping target columns.
   - Live configuration editor (adjust scan intervals, matching confidence, OCR engine, and model selection) without restarting the server.
 - **📱 Automated ADB Integration**
   - "Open on Phone" button triggers `adb reverse tcp:8080 tcp:8080` and automatically launches the intent on connected Android devices for true offline usability.
+- **🍎 Zero-Config iOS Support**
+  - iPhone/iPad scanning via **Tailscale HTTPS tunnel** — no ADB, no LAN required. The admin panel includes a collapsible guidance card with one-click copy for the `tailscale serve` command.
 
 ### 🚀 Quick Start
 
@@ -80,11 +83,14 @@ cd contract_scanner_ai
 - **🎯 纯前端高并发模糊匹配**
   - 收到 OCR 识别结果后，在浏览器端利用 **Levenshtein 编辑距离算法** 与缓存的 `targets.json` 进行高效碰撞比对。
   - 支持高度自定义的容错率、匹配长度阈值，并在匹配成功时自动调用 HTML5 Vibration API 触发物理震动反馈。
+  - 匹配结果实时回显：展示 OCR 原始识别文字、匹配目标名称、置信度分数及匹配类型，一眼验证识别准确性。
 - **📊 动态配置管理驾驶舱**
   - 极致优雅的 `admin.html` 控制台。支持直接拖拽 Excel/CSV 表格自动映射所需的数据列，直接解析。
   - 所有核心参数（轮询间隔、容错率、引擎切换）均可在此面板实时调优并持久化到配置，无需重启服务端。
 - **📱 ADB 深度自动化整合**
   - 后端集成了 ADB 命令执行环境，点击面板的“在手机上打开”即可全自动执行端口反向映射 (`adb reverse`) 并唤起安卓设备默认浏览器，完美适应“无局域网”、“纯内网”等严苛作业环境。
+- **🍎 iOS 零配置接入**
+  - 通过 **Tailscale HTTPS 隧道**实现 iPhone/iPad 扫描，无需 ADB、无需局域网。管理台内置可折叠的引导卡片，支持一键复制 `tailscale serve` 命令。
 
 ### 🚀 极速起步
 
