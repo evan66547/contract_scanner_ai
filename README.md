@@ -53,6 +53,11 @@ cd contract_scanner_ai
 - **Open Scanner on Mobile (Two Ways):**
   - **Wireless Connection:** Connect your phone to the same Wi-Fi network as your PC and access the server's local IP (e.g., `http://192.168.1.x:8080`).
   - **Wired (USB) Connection:** Connect via USB and click "Open on Phone" in the admin panel to auto-launch via ADB.
+  - **iOS (iPhone/iPad) via Mac USB:**
+    1. Mac: System Settings → General → Sharing → enable "Internet Sharing" (Share your connection from: Wi-Fi, To computers using: USB)
+    2. Connect iPhone to Mac via USB cable
+    3. Open Safari on iPhone and visit `http://localhost:8080`
+    4. Allow camera permission when prompted
 
 ---
 
@@ -100,5 +105,10 @@ cd contract_scanner_ai
 - **在手机端打开扫描器 (两种方式)**: 
   - **无线连接 (推荐)**: 确保手机和电脑连接在同一局域网 (Wi-Fi)，使用手机浏览器直接访问电脑的局域网 IP (例如 `http://192.168.1.x:8080`) 即可随时随地无线扫描。
   - **有线连接 (ADB)**: 在安卓手机插线后，直接点击管理台中右上角的“在手机上打开”按钮。
+  - **iOS (iPhone/iPad) 通过 Mac USB**:
+    1. Mac: 系统设置 → 通用 → 共享 → 开启"互联网共享"（共享来源: Wi-Fi，用以下端口: USB）
+    2. iPhone 用 USB 线连接 Mac
+    3. iPhone 打开 Safari，访问 `http://localhost:8080`
+    4. 允许摄像头权限后即可扫描
 
 > 🔐 **隐私及安全提示**: 为了开源安全，本仓库中的代码已剥离硬编码的 API 密钥及隐私名单数据。如需使用百度 OCR 等云端服务，请在启动服务后前往管理面板的“设置”项中自行安全配置。

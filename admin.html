@@ -396,6 +396,26 @@
 </ol>
 </div>
 
+<!-- iOS Scanning Card -->
+<div style="margin-top:16px;border:1px solid rgba(99,102,241,0.15);border-radius:10px;overflow:hidden">
+  <div onclick="toggleIosCard()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);cursor:pointer">
+    <div style="display:flex;align-items:center;gap:8px;font-weight:600;color:#4f46e5;font-size:13px">
+      <span>🍎</span> iOS 扫描 (Safari)
+    </div>
+    <span id="ios-chevron" style="color:#6366f1;transition:transform 0.2s">▶</span>
+  </div>
+  <div id="ios-content" style="display:none;padding:14px;font-size:12px;color:var(--text-main);line-height:1.8">
+    <ol style="margin:0 0 12px 18px;padding:0">
+      <li>Mac: 系统设置 → 通用 → 共享 → 开启<strong>互联网共享</strong>（用以下端口: USB）</li>
+      <li>iPhone: 用 USB 线连接 Mac</li>
+      <li>iPhone: 打开 Safari，访问 <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">localhost:8080</code></li>
+      <li>允许摄像头权限后即可扫描</li>
+    </ol>
+    <button onclick="copyIosUrl()" style="padding:6px 12px;border-radius:6px;border:none;background:#4f46e5;color:#fff;font-size:12px;cursor:pointer">📋 复制链接</button>
+    <span id="ios-copy-feedback" style="margin-left:8px;font-size:11px;color:#10b981;opacity:0;transition:opacity 0.3s">已复制!</span>
+  </div>
+</div>
+
 <div id="adb-result" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:8px">
 <div style="font-size:12px;font-weight:600;color:var(--success-color);margin-bottom:4px">无线连接成功</div>
 <div style="font-size:12px;color:var(--text-main)">手机浏览器访问：<span style="font-family:monospace">http://localhost:8080</span></div>
@@ -1803,6 +1823,24 @@
         // 启动时检查一次，之后每 10 秒轮询
         checkModelStatus();
         setInterval(checkModelStatus, 10000);
+
+        function toggleIosCard() {
+            const content = document.getElementById('ios-content');
+            const chevron = document.getElementById('ios-chevron');
+            const isOpen = content.style.display === 'block';
+            content.style.display = isOpen ? 'none' : 'block';
+            chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+        }
+
+        function copyIosUrl() {
+            const port = window.location.port || '8080';
+            const url = 'http://localhost:' + port;
+            navigator.clipboard.writeText(url).then(function() {
+                const feedback = document.getElementById('ios-copy-feedback');
+                feedback.style.opacity = '1';
+                setTimeout(function() { feedback.style.opacity = '0'; }, 1500);
+            });
+        }
 
         loadConfig();
     </script>
