@@ -46,13 +46,7 @@ PORT=${PORT:-8080}
 echo "🌐 PC Dashboard: http://localhost:${PORT}/admin.html"
 echo "📱 Mobile Scanner: http://localhost:${PORT}"
 echo "   (Use ADB reverse to access via USB: adb reverse tcp:${PORT} tcp:${PORT})"
-# Detect iPhone/iPad via USB for iOS scanning guidance
-if command -v system_profiler &>/dev/null && \
-   system_profiler SPUSBDataType 2>/dev/null | grep -qiE "iPhone|iPad"; then
-    echo "🍎 iPhone/iPad detected via USB."
-    echo "   iOS Scan: System Settings → General → Sharing → Internet Sharing (USB)"
-    echo "   Then open Safari on iPhone: http://localhost:${PORT}"
-fi
+# iOS scanning requires Tailscale HTTPS tunnel (see admin panel for setup)
 echo "------------------------------------------"
 echo "🚀 Server is running. Press Ctrl+C to stop."
 python3 server.py

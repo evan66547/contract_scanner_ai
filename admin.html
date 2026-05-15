@@ -400,18 +400,20 @@
 <div style="margin-top:16px;border:1px solid rgba(99,102,241,0.15);border-radius:10px;overflow:hidden">
   <div onclick="toggleIosCard()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);cursor:pointer">
     <div style="display:flex;align-items:center;gap:8px;font-weight:600;color:#4f46e5;font-size:13px">
-      <span>🍎</span> iOS 扫描 (Safari)
+      <span>🍎</span> iOS 扫描 (Tailscale)
     </div>
     <span id="ios-chevron" style="color:#6366f1;transition:transform 0.2s">▶</span>
   </div>
   <div id="ios-content" style="display:none;padding:14px;font-size:12px;color:var(--text-main);line-height:1.8">
+    <p style="margin:0 0 8px 0">iOS Safari 仅允许 HTTPS 安全上下文调用摄像头。<br>通过 Tailscale 建立私有 HTTPS 隧道，无需暴露公网。</p>
     <ol style="margin:0 0 12px 18px;padding:0">
-      <li>Mac: 系统设置 → 通用 → 共享 → 开启<strong>互联网共享</strong>（用以下端口: USB）</li>
-      <li>iPhone: 用 USB 线连接 Mac</li>
-      <li>iPhone: 打开 Safari，访问 <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">localhost:8080</code></li>
+      <li>Mac 与 iPhone 安装 <a href="https://tailscale.com/download" target="_blank" style="color:#4f46e5">Tailscale</a> 并登录<strong>同一账号</strong></li>
+      <li>Tailscale <a href="https://login.tailscale.com/admin/dns" target="_blank" style="color:#4f46e5">管理后台</a> 启用 <strong>HTTPS Certificates</strong> 与 <strong>MagicDNS</strong></li>
+      <li>Mac 终端运行：<code id="tailscale-cmd" style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">tailscale serve --bg http://localhost:8080</code></li>
+      <li>iPhone Safari 访问：<code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">https://&lt;设备名&gt;.&lt;tailnet&gt;.ts.net</code></li>
       <li>允许摄像头权限后即可扫描</li>
     </ol>
-    <button onclick="copyIosUrl()" style="padding:6px 12px;border-radius:6px;border:none;background:#4f46e5;color:#fff;font-size:12px;cursor:pointer">📋 复制链接</button>
+    <button onclick="copyTailscaleCmd()" style="padding:6px 12px;border-radius:6px;border:none;background:#4f46e5;color:#fff;font-size:12px;cursor:pointer">📋 复制命令</button>
     <span id="ios-copy-feedback" style="margin-left:8px;font-size:11px;color:#10b981;opacity:0;transition:opacity 0.3s">已复制!</span>
   </div>
 </div>
@@ -1832,10 +1834,9 @@
             chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
         }
 
-        function copyIosUrl() {
-            const port = window.location.port || '8080';
-            const url = 'http://localhost:' + port;
-            navigator.clipboard.writeText(url).then(function() {
+        function copyTailscaleCmd() {
+            const cmd = document.getElementById('tailscale-cmd').innerText;
+            navigator.clipboard.writeText(cmd).then(function() {
                 const feedback = document.getElementById('ios-copy-feedback');
                 feedback.style.opacity = '1';
                 setTimeout(function() { feedback.style.opacity = '0'; }, 1500);
