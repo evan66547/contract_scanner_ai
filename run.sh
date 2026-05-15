@@ -42,9 +42,10 @@ fi
 
 # 6. Start the Server
 echo "------------------------------------------"
-echo "🌐 PC Dashboard: http://localhost:8080/admin.html"
-echo "📱 Mobile Scanner: http://localhost:8080"
-echo "   (Use ADB reverse to access via USB: adb reverse tcp:8080 tcp:8080)"
+PORT=${PORT:-8080}
+echo "🌐 PC Dashboard: http://localhost:${PORT}/admin.html"
+echo "📱 Mobile Scanner: http://localhost:${PORT}"
+echo "   (Use ADB reverse to access via USB: adb reverse tcp:${PORT} tcp:${PORT})"
 echo "------------------------------------------"
 echo "🚀 Server is running. Press Ctrl+C to stop."
 python3 server.py

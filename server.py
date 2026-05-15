@@ -1010,10 +1010,28 @@ def _get_device_wifi_ip(adb_prefix: list) -> Optional[str]:
                     return parts[idx + 1]
     except Exception:
         pass
+    # 方法2: ip addr（兼容接口名非 wlan0 的设备，如 wlan1 / eth0）
     try:
-        r2 = subprocess.run(adb_prefix + ["shell", "ifconfig", "wlan0"],
+        r2 = subprocess.run(adb_prefix + ["shell", "ip", "-f", "inet", "addr"],
                             capture_output=True, text=True, timeout=5)
+        current_iface = ""
         for line in r2.stdout.splitlines():
+            line = line.strip()
+            if line and line[0].isdigit() and ":" in line:
+                current_iface = line.split(":")[1].strip()
+            elif "inet " in line and ("wlan" in current_iface or "eth" in current_iface):
+                ip_part = line.split()[1]
+                if "/" in ip_part:
+                    ip_part = ip_part.split("/")[0]
+                if ip_part and not ip_part.startswith("127."):
+                    return ip_part
+    except Exception:
+        pass
+    # 方法3: ifconfig fallback（旧 Android / 部分 ROM）
+    try:
+        r3 = subprocess.run(adb_prefix + ["shell", "ifconfig", "wlan0"],
+                            capture_output=True, text=True, timeout=5)
+        for line in r3.stdout.splitlines():
             if "inet " in line:
                 ip_part = line.split()[1]
                 if ":" in ip_part:
