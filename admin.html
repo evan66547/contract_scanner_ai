@@ -405,15 +405,55 @@
     <span id="ios-chevron" style="color:#6366f1;transition:transform 0.2s">▶</span>
   </div>
   <div id="ios-content" style="display:none;padding:14px;font-size:12px;color:var(--text-main);line-height:1.8">
-    <p style="margin:0 0 8px 0">iOS Safari 仅允许 HTTPS 安全上下文调用摄像头。<br>通过 Tailscale 建立私有 HTTPS 隧道，无需暴露公网。</p>
-    <ol style="margin:0 0 12px 18px;padding:0">
-      <li>Mac 与 iPhone 安装 <a href="https://tailscale.com/download" target="_blank" style="color:#4f46e5">Tailscale</a> 并登录<strong>同一账号</strong></li>
-      <li>Tailscale <a href="https://login.tailscale.com/admin/dns" target="_blank" style="color:#4f46e5">管理后台</a> 启用 <strong>HTTPS Certificates</strong> 与 <strong>MagicDNS</strong></li>
-      <li>Mac 终端运行：<code id="tailscale-cmd" style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">tailscale serve --bg http://localhost:8080</code></li>
-      <li>iPhone Safari 访问：<code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">https://&lt;设备名&gt;.&lt;tailnet&gt;.ts.net</code></li>
-      <li>允许摄像头权限后即可扫描</li>
-    </ol>
-    <button onclick="copyTailscaleCmd()" style="padding:6px 12px;border-radius:6px;border:none;background:#4f46e5;color:#fff;font-size:12px;cursor:pointer">📋 复制命令</button>
+    <p style="margin:0 0 10px 0">iOS Safari 只允许 HTTPS 网站调用摄像头。Tailscale 会为 Mac 自动生成私有 HTTPS 证书，让 iPhone 安全访问本服务，无需公网 IP。</p>
+
+    <div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.12);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-weight:600;color:#4f46e5;margin-bottom:6px">首次配置（只需一次）</div>
+      <ol style="margin:0 0 0 18px;padding:0">
+        <li>Mac 与 iPhone 分别从 App Store 安装 <a href="https://tailscale.com/download" target="_blank" style="color:#4f46e5">Tailscale</a></li>
+        <li>两端登录<strong>同一个账号</strong>（可用 Google/Apple/Microsoft 账号）</li>
+        <li>Mac 浏览器打开 <a href="https://login.tailscale.com/admin/dns" target="_blank" style="color:#4f46e5">Tailscale 管理后台</a></li>
+        <li>打开 <strong>HTTPS Certificates</strong> 和 <strong>MagicDNS</strong> 两个开关</li>
+      </ol>
+    </div>
+
+    <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.12);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-weight:600;color:#059669;margin-bottom:6px">每次扫描前</div>
+      <ol style="margin:0 0 0 18px;padding:0">
+        <li>确认 Mac 菜单栏 Tailscale 图标显示 <strong>Connected</strong></li>
+        <li>Mac 终端执行以下命令建立隧道：</li>
+      </ol>
+      <div style="display:flex;align-items:center;gap:8px;margin:8px 0">
+        <code id="tailscale-cmd" style="flex:1;background:rgba(0,0,0,0.06);padding:6px 10px;border-radius:4px;font-family:monospace">tailscale serve --bg http://localhost:8080</code>
+        <button onclick="copyTailscaleCmd()" style="padding:6px 12px;border-radius:6px;border:none;background:#4f46e5;color:#fff;font-size:12px;cursor:pointer;white-space:nowrap">📋 复制</button>
+      </div>
+      <div style="margin-bottom:6px">执行成功后，在终端运行 <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">tailscale status</code> 查看你的设备名。</div>
+      <div style="background:rgba(0,0,0,0.04);padding:8px 10px;border-radius:6px">
+        <div style="font-weight:600;margin-bottom:4px">你的专属访问地址：</div>
+        <code style="background:rgba(0,0,0,0.06);padding:4px 8px;border-radius:4px;display:block">https://&lt;设备名&gt;.&lt;tailnet&gt;.ts.net</code>
+        <div style="margin-top:4px;color:#64748b;font-size:11px">示例：https://macbook-pro.tail4df118.ts.net</div>
+      </div>
+    </div>
+
+    <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.12);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-weight:600;color:#d97706;margin-bottom:6px">iPhone 端操作</div>
+      <ol style="margin:0 0 0 18px;padding:0">
+        <li>打开 iPhone 上的 Tailscale App，确认显示 <strong>Connected</strong></li>
+        <li>打开 Safari，输入上面的 HTTPS 地址访问</li>
+        <li>首次访问会提示证书信任，点击<strong>继续</strong></li>
+        <li>允许摄像头权限，即可开始扫描</li>
+      </ol>
+    </div>
+
+    <div style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.1);border-radius:8px;padding:8px 12px">
+      <div style="font-weight:600;color:#dc2626;margin-bottom:4px">连不上？</div>
+      <ul style="margin:0 0 0 18px;padding:0;color:#64748b">
+        <li>确保 Mac 和 iPhone 的 Tailscale 都显示 Connected</li>
+        <li>确保两端登录的是<strong>同一个账号</strong></li>
+        <li>管理后台的 HTTPS Certificates 开关必须打开</li>
+        <li>地址必须是 <code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px">https://</code> 开头，不是 http://</li>
+      </ul>
+    </div>
     <span id="ios-copy-feedback" style="margin-left:8px;font-size:11px;color:#10b981;opacity:0;transition:opacity 0.3s">已复制!</span>
   </div>
 </div>
