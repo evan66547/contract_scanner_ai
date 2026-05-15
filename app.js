@@ -435,8 +435,11 @@ function initWebSocket() {
             let wsInfoParts = [];
             if (matchRes.displayInfo) wsInfoParts.push(`${targetHeaders.displayInfo}: ${matchRes.displayInfo}`);
             if (matchRes.displayInfo2) wsInfoParts.push(`${targetHeaders.displayInfo2}: ${matchRes.displayInfo2}`);
-            const infoLine = wsInfoParts.length ? `\n\n${t('app.info_prefix')}${wsInfoParts.join(' | ')}` : '';
-            const displayText = `${matchRes.target}${infoLine}\n\n[ 点击屏幕继续 ]`;
+            const infoLine = wsInfoParts.length ? `\n${wsInfoParts.join(' | ')}` : '';
+
+            const rawText = text.trim().replace(/\s+/g, ' ');
+            const rawPreview = rawText.length > 28 ? rawText.substring(0, 28) + '...' : rawText;
+            const displayText = `识别：${rawPreview}\n匹配：${matchRes.target}\n${matchRes.score}% · ${matchRes.matchType}${infoLine}\n\n[ 点击屏幕继续 ]`;
             updateStatus(STATE.MATCHED, '✅', t('app.match_found'), displayText);
             log(`🎯 WS响应: ${matchRes.target} (${matchRes.score}%)`);
 
