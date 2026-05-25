@@ -19,6 +19,9 @@ companies.json.bak
 logs/
 *.log
 
+# Scan statistics (runtime generated)
+scan_stats.json
+
 # Temp files
 *.png
 *.bak

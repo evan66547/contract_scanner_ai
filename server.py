@@ -491,6 +491,97 @@ async def ocr_test():
 
     return result
 
+# === 扫描计数（按日期持久化到 scan_stats.json） ===
+SCAN_STATS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scan_stats.json")
+_scan_stats_cache: Optional[dict] = None
+
+def _today_str() -> str:
+    from datetime import date
+    return date.today().isoformat()
+
+def _load_scan_stats() -> dict:
+    """加载 scan_stats.json，失败返回空 dict"""
+    global _scan_stats_cache
+    if _scan_stats_cache is not None:
+        return _scan_stats_cache
+    try:
+        if os.path.exists(SCAN_STATS_FILE):
+            with open(SCAN_STATS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                _scan_stats_cache = data
+                return data
+    except Exception:
+        pass
+    return {}
+
+def _save_scan_stats(stats: dict):
+    """原子写入 scan_stats.json"""
+    import tempfile
+    dir_name = os.path.dirname(SCAN_STATS_FILE) or "."
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", suffix=".tmp", delete=False, dir=dir_name
+    ) as f:
+        json.dump(stats, f, ensure_ascii=False, indent=2)
+    os.replace(f.name, SCAN_STATS_FILE)
+
+def _is_error_text(text: str) -> bool:
+    """判断 OCR 结果是否为错误/超时字符串"""
+    if not text:
+        return True
+    if text.startswith("[") and ("Error:" in text or "Timeout:" in text):
+        return True
+    return False
+
+def _maybe_count_scan(text: str):
+    """OCR 结果满足条件时计数 +1：去空白后长度 > 6 且非错误字符串"""
+    global _scan_stats_cache
+    if _is_error_text(text):
+        return
+    cleaned = text.replace("\n", "").replace("\r", "").replace(" ", "")
+    if len(cleaned) > 6:
+        today = _today_str()
+        stats = _load_scan_stats()
+        stats[today] = stats.get(today, 0) + 1
+        _save_scan_stats(stats)
+        _scan_stats_cache = stats
+
+@app.get("/api/scan-stats")
+async def get_scan_stats():
+    today = _today_str()
+    stats = _load_scan_stats()
+    return {"date": today, "count": stats.get(today, 0)}
+
+@app.get("/api/scan-stats/month")
+async def get_scan_stats_month(month: str = ""):
+    import re, calendar
+    from datetime import date
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        month = date.today().strftime("%Y-%m")
+    try:
+        year, mon = int(month[:4]), int(month[5:7])
+        if not (1 <= mon <= 12):
+            return JSONResponse({"error": "invalid month"}, status_code=400)
+        _, last_day = calendar.monthrange(year, mon)
+    except Exception:
+        return JSONResponse({"error": "invalid month"}, status_code=400)
+    stats = _load_scan_stats()
+    days = {}
+    for d in range(1, last_day + 1):
+        key = f"{month}-{d:02d}"
+        days[key] = stats.get(key, 0)
+    return {"month": month, "days": days}
+
+@app.post("/api/scan-stats/reset")
+async def reset_scan_stats(request: Request):
+    data = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    target_date = data.get("date") or _today_str()
+    stats = _load_scan_stats()
+    stats[target_date] = 0
+    _save_scan_stats(stats)
+    global _scan_stats_cache
+    _scan_stats_cache = stats
+    return {"success": True, "date": target_date, "count": 0}
+
 @app.get("/api/config")
 async def get_config():
     return JSONResponse(load_json(CONFIG_FILE, {}))
@@ -828,6 +919,7 @@ async def rest_ocr(request: Request):
             text = await asyncio.wait_for(dispatch_ocr(image_data), timeout=60)
         except asyncio.TimeoutError:
             text = "[Timeout: OCR 引擎响应超时，请重试]"
+    _maybe_count_scan(text)
     return {"text": text}
 
 # ================================
@@ -930,6 +1022,7 @@ async def websocket_ocr(websocket: WebSocket):
             else:
                 consecutive_empty_frames = 0
 
+            _maybe_count_scan(ocr_text)
             if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} sending 'success'")
             await websocket.send_json({
                 "status": "success",
