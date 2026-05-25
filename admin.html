@@ -992,11 +992,22 @@
             document.getElementById('scan-fps').textContent = fps + '/s';
         }
 
+        function updateCalendarDayCount(dateStr, count) {
+            const el = document.querySelector('[data-cal-date="' + dateStr + '"]');
+            if (!el) return;
+            const cnt = el.querySelector('.cal-count');
+            if (!cnt) return;
+            cnt.textContent = count + ' 次';
+            cnt.style.color = count > 0 ? '#2563eb' : '#94a3b8';
+            el.style.fontWeight = count > 0 ? '600' : '';
+        }
+
         async function refreshScanCount() {
             try {
                 const res = await fetch('/api/scan-stats');
                 const data = await res.json();
                 document.getElementById('scan-today').textContent = data.count;
+                if (data.date) updateCalendarDayCount(data.date, data.count || 0);
             } catch {}
         }
         refreshScanCount();
@@ -1019,6 +1030,14 @@
                 var data = await res.json();
                 days = data.days || {};
             } catch {}
+            try {
+                var todayRes = await fetch('/api/scan-stats');
+                var todayData = await todayRes.json();
+                if (todayData.date && todayData.date.substring(0, 7) === mm) {
+                    days[todayData.date] = todayData.count || 0;
+                    document.getElementById('scan-today').textContent = todayData.count || 0;
+                }
+            } catch {}
             var grid = document.getElementById('cal-grid');
             grid.innerHTML = '';
             // 星期头
@@ -1039,7 +1058,8 @@
             for (var d = 1; d <= daysInMonth; d++) {
                 var dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
                 var el = document.createElement('div');
-                el.style.cssText = 'padding:6px 2px;border-radius:6px;cursor:pointer;transition:background 0.2s';
+                el.setAttribute('data-cal-date', dateStr);
+                el.style.cssText = 'min-height:48px;padding:6px 2px;border-radius:6px;cursor:pointer;transition:background 0.2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px';
                 var count = days[dateStr] || 0;
                 if (dateStr === todayStr) el.style.border = '2px solid #2563eb';
                 if (dateStr === calSelectedDate) el.style.background = '#dbeafe';
@@ -1048,13 +1068,13 @@
                 numDiv.style.fontSize = '13px';
                 numDiv.textContent = d;
                 el.appendChild(numDiv);
-                if (count > 0) {
-                    var cntDiv = document.createElement('div');
-                    cntDiv.style.fontSize = '10px';
-                    cntDiv.style.color = '#2563eb';
-                    cntDiv.textContent = count + '次';
-                    el.appendChild(cntDiv);
-                }
+                var cntDiv = document.createElement('div');
+                cntDiv.className = 'cal-count';
+                cntDiv.style.fontSize = '10px';
+                cntDiv.style.lineHeight = '1';
+                cntDiv.style.color = count > 0 ? '#2563eb' : '#94a3b8';
+                cntDiv.textContent = count + ' 次';
+                el.appendChild(cntDiv);
                 (function(ds) {
                     el.onclick = function() { calSelectedDate = ds; document.getElementById('cal-reset-btn').style.display = ''; loadCalendar(); };
                 })(dateStr);
