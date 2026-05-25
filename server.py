@@ -325,7 +325,8 @@ async def call_baidu(base64_img: str, baidu_cfg: dict) -> str:
                 if error_code == 18:  # QPS limit
                     errors.append(f"{api_label}: QPS超限")
                     continue
-                return f"[Baidu Error: {data.get('error_msg', f'code {data.get('error_code', 'unknown')}')}]"
+                err_code = data.get('error_code', 'unknown')
+                return f"[Baidu Error: {data.get('error_msg', f'code {err_code}')}]"
         return f"[Baidu Error: 所有接口额度用尽 - {'; '.join(errors)}]"
     except Exception as e:
         return f"[Baidu Error: {str(e)}]"
