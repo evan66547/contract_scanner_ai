@@ -14,6 +14,7 @@ import socket
 import subprocess
 
 import multiprocessing
+from ocr import OcrRuntime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,7 +23,6 @@ import openpyxl
 import aiohttp
 import logging
 from logging.handlers import RotatingFileHandler
-import concurrent.futures
 
 # === 服务配置 ===
 SERVER_PORT = int(os.environ.get('PORT', os.environ.get('SERVER_PORT', 8080)))
@@ -32,12 +32,15 @@ DEBUG_WS = os.environ.get("DEBUG_WS", "0") == "1"
 http_session: Optional[aiohttp.ClientSession] = None
 
 async def _reset_http_session():
-    """重置 aiohttp session，清理可能卡死的连接池"""
-    global http_session
+    """重置 aiohttp session，清理可能卡死的连接池，同步更新 runtime 引用"""
+    global http_session, _ocr_runtime, _fallback_ocr_runtime
     if http_session and not http_session.closed:
         await http_session.close()
     timeout = aiohttp.ClientTimeout(total=60, connect=10)
     http_session = aiohttp.ClientSession(timeout=timeout)
+    for rt in (_ocr_runtime, _fallback_ocr_runtime):
+        if rt is not None and not rt._closed:
+            rt.http_session = http_session
     logger.info("🔄 aiohttp Session 已重置（清理死连接）")
 
 # === WebSocket 并发控制 ===
@@ -46,27 +49,34 @@ MAX_OCR_CONCURRENT = 5  # 增加并发限制
 ws_semaphore: Optional[asyncio.Semaphore] = None
 active_ws_clients: Set[WebSocket] = set()
 
-# ================================
-# PaddleOCR 引擎（针对 M1 Pro 深度优化）
-# ================================
-_paddle_ocr_instance = None
-# 建议单并发，让单个任务占满 CPU 核心以降低单帧延迟，防止系统卡顿
-ocr_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr")
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """管理应用生命周期：启动时创建 HTTP Session，预热模型，关闭时释放资源"""
     global http_session, ws_semaphore
-    timeout = aiohttp.ClientTimeout(total=60, connect=10)
-    http_session = aiohttp.ClientSession(timeout=timeout)
+    http_session = aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=10, connect=2)
+    )
     ws_semaphore = asyncio.Semaphore(MAX_OCR_CONCURRENT)
     logger.info("✅ aiohttp Session 已创建")
     logger.info(f"✅ OCR 并发限制: {MAX_OCR_CONCURRENT}")
+
+    # 初始化 OCR Runtime（Phase 1: 配置管理 + mtime 缓存）
+    global _ocr_runtime
+    _ocr_runtime = OcrRuntime(CONFIG_FILE, http_session)
+    app.state.ocr = _ocr_runtime
 
     # 预热 GLM-OCR 模型（加载到显存/内存）
     asyncio.create_task(warmup_model())
 
     yield
+    global _fallback_ocr_runtime
+    if _ocr_runtime is not None:
+        await _ocr_runtime.close()
+        logger.info("🔚 OCR Runtime 已关闭")
+    if _fallback_ocr_runtime is not None:
+        await _fallback_ocr_runtime.close()
+        _fallback_ocr_runtime = None
+        logger.info("🔚 Fallback OCR Runtime 已关闭")
     await http_session.close()
     logger.info("🔚 aiohttp Session 已关闭")
 
@@ -172,11 +182,16 @@ def save_json(filepath, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(f.name, filepath)
 
+_ocr_runtime: Optional[OcrRuntime] = None
+_fallback_ocr_runtime: Optional[OcrRuntime] = None
+
 def get_ocr_config():
-    """获取 OCR 配置，自动迁移旧格式"""
+    """获取 OCR 配置：优先走 OcrRuntime（mtime 缓存），降级走原逻辑"""
+    if _ocr_runtime is not None:
+        return _ocr_runtime.get_config()
+    # 降级：lifespan 前或测试环境
     cfg = load_json(CONFIG_FILE, {})
     if "ocr" not in cfg:
-        # 迁移旧格式
         old_model = cfg.pop("ollamaModel", "glm-ocr")
         cfg["ocr"] = {
             "provider": "ollama",
@@ -187,32 +202,34 @@ def get_ocr_config():
             "paddle": {"useGpu": False}
         }
         save_json(CONFIG_FILE, cfg)
-    # 确保 ocrspace 配置块存在（向前兼容）
     if "ocrspace" not in cfg.get("ocr", {}):
         cfg["ocr"]["ocrspace"] = {"apiKey": "", "language": "chs"}
-    # 确保 paddle 配置块存在（向前兼容）
     if "paddle" not in cfg.get("ocr", {}):
         cfg["ocr"]["paddle"] = {"useGpu": False}
     return cfg
 
-# === 百度 OCR access_token 缓存 ===
-_baidu_token_cache = {"token": None, "expires": 0}
+def _runtime_for_ocr() -> OcrRuntime:
+    """获取 OCR Runtime；优先用 lifespan 实例，否则返回单例 fallback。"""
+    global _fallback_ocr_runtime
+    if _ocr_runtime is not None:
+        return _ocr_runtime
+    if _fallback_ocr_runtime is None:
+        _fallback_ocr_runtime = OcrRuntime(CONFIG_FILE, http_session)
+    return _fallback_ocr_runtime
 
 async def get_baidu_token(api_key: str, secret_key: str) -> str:
-    if _baidu_token_cache["token"] and time.time() < _baidu_token_cache["expires"]:
-        return _baidu_token_cache["token"]
-    url = f"https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={api_key}&client_secret={secret_key}"
-    async with http_session.post(url) as resp:
-        data = await resp.json()
-        token = data.get("access_token", "")
-        _baidu_token_cache["token"] = token
-        _baidu_token_cache["expires"] = time.time() + data.get("expires_in", 2592000) - 60
-        return token
+    runtime = _runtime_for_ocr()
+    if runtime.http_session is None:
+        return ""
+    return await runtime.get_baidu_token(api_key, secret_key)
 
 # ================================
 # OCR 引擎调度器
 # ================================
 async def dispatch_ocr(base64_img: str) -> str:
+    if _ocr_runtime is not None:
+        return await _ocr_runtime.recognize_text(base64_img)
+    # 降级：无 OcrRuntime 时保留原逻辑
     cfg = get_ocr_config()
     provider = cfg["ocr"].get("provider", "ollama")
     if provider == "baidu":
@@ -230,106 +247,10 @@ async def call_ollama(base64_img: str, ollama_cfg: dict = None) -> str:
     if ollama_cfg is None:
         cfg = get_ocr_config()
         ollama_cfg = cfg["ocr"].get("ollama", {})
-    base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
-    model = ollama_cfg.get("model", "glm-ocr")
-    keep_alive = ollama_cfg.get("keepAlive", "10m")
-
-    url = f"{base_url.rstrip('/')}/api/generate"
-    # 针对合同复印件优化 Prompt：增加对干扰项的过滤指令，并强调实体提取
-    payload = {
-        "model": model,
-        "prompt": "你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。请确保公司名称、日期等关键信息准确。直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式：",
-        "images": [base64_img],
-        "stream": True,
-        "keep_alive": keep_alive
-    }
-
-    # 使用独立 session，避免 Ollama 死连接污染全局连接池
-    ocr_timeout = aiohttp.ClientTimeout(total=120, sock_read=30, connect=10)
-    async with aiohttp.ClientSession(timeout=ocr_timeout) as session:
-        try:
-            async with session.get(f"{base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=2)) as check:
-                if check.status != 200:
-                    return "[Ollama Error: Ollama 未响应]"
-        except Exception:
-            return "[Ollama Error: Ollama 离线，请检查是否启动]"
-
-        max_retries = 1
-        for attempt in range(max_retries + 1):
-            try:
-                async with session.post(url, json=payload, timeout=ocr_timeout) as resp:
-                    if resp.status != 200:
-                        return f"[Ollama Error: {resp.status}]"
-
-                    parts = []
-                    async for line in resp.content:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            chunk = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        parts.append(chunk.get("response", ""))
-                        if chunk.get("done"):
-                            break
-                    return "".join(parts)
-
-            except asyncio.TimeoutError:
-                if attempt < max_retries:
-                    logger.info(f"[Ollama] 第 {attempt + 1} 次请求超时，3 秒后重试...")
-                    await asyncio.sleep(3)
-                    continue
-                return "[Timeout: Ollama 响应超时，请检查模型是否卡死]"
-            except Exception as e:
-                return f"[Ollama Error: {str(e)}]"
-
-_BAIDU_OCR_APIS = [
-    ("accurate_basic", "通用文字识别（高精度版）"),
-    ("general_basic", "通用文字识别（标准版）"),
-    ("webimage", "网络图片文字识别"),
-    ("webimage_loc", "网络图片文字识别（含位置版）"),
-    ("handwriting", "手写文字识别"),
-    ("numbers", "数字识别"),
-]
+    return await _runtime_for_ocr().recognize_ollama(base64_img, ollama_cfg)
 
 async def call_baidu(base64_img: str, baidu_cfg: dict) -> str:
-    api_key = baidu_cfg.get("apiKey", "")
-    secret_key = baidu_cfg.get("secretKey", "")
-    if not api_key or not secret_key:
-        return "[Baidu Error: API Key 未配置]"
-
-    try:
-        token = await get_baidu_token(api_key, secret_key)
-        errors = []
-        for api_name, api_label in _BAIDU_OCR_APIS:
-            url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/{api_name}?access_token={token}"
-            params = {"image": base64_img, "language_type": "CHN_ENG", "detect_direction": "true"}
-            async with http_session.post(url, data=params) as resp:
-                data = await resp.json()
-                # Extract text from various Baidu OCR response formats
-                text = ""
-                if "words_result" in data:
-                    for w in data["words_result"]:
-                        text += w.get("words", "")
-                elif "forms_result" in data:
-                    for form in data["forms_result"]:
-                        for body in form.get("body", []):
-                            text += body.get("words", "")
-                if text.strip():
-                    return text
-                error_code = data.get("error_code", 0)
-                if error_code == 17:  # Open api daily request limit reached
-                    errors.append(f"{api_label}: 额度用尽")
-                    continue
-                if error_code == 18:  # QPS limit
-                    errors.append(f"{api_label}: QPS超限")
-                    continue
-                err_code = data.get('error_code', 'unknown')
-                return f"[Baidu Error: {data.get('error_msg', f'code {err_code}')}]"
-        return f"[Baidu Error: 所有接口额度用尽 - {'; '.join(errors)}]"
-    except Exception as e:
-        return f"[Baidu Error: {str(e)}]"
+    return await _runtime_for_ocr().recognize_baidu(base64_img, baidu_cfg)
 
 async def call_ocrspace(base64_img: str, ocrspace_cfg: dict) -> str:
     api_key = ocrspace_cfg.get("apiKey", "")
@@ -384,61 +305,8 @@ async def call_openai(base64_img: str, openai_cfg: dict) -> str:
     except Exception as e:
         return f"[OpenAI Error: {str(e)}]"
 
-def _get_paddle_ocr():
-    """针对 M1 Pro 极速优化的初始化 (适配 PaddleOCR 3.5.0)"""
-    global _paddle_ocr_instance
-    if _paddle_ocr_instance is None:
-        try:
-            import paddle
-            # 强制开启 CPU 加速
-            paddle.set_flags({'FLAGS_use_mkldnn': True})
-        except Exception:
-            pass
-
-        from paddleocr import PaddleOCR
-        # 强制使用轻量级 mobile 模型，并进一步降低分辨率
-        _paddle_ocr_instance = PaddleOCR(
-            lang='ch',
-            ocr_version='PP-OCRv4',
-            text_det_limit_side_len=480,       # 从 640 降至 480，大幅提速
-            text_recognition_batch_size=1,     # 单帧识别不需要 batch，设为 1 降低首字延迟
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,           # 确保关闭文档矫正（很慢）
-            use_textline_orientation=False     # 确保关闭文字方向检测
-        )
-    return _paddle_ocr_instance
-
 async def call_paddle(base64_img: str) -> str:
-    """使用 OpenCV 极速解码 + PaddleOCR 识别"""
-    try:
-        import numpy as np
-        import cv2
-    except ImportError as e:
-        return f"[PaddleOCR Error: 缺少依赖 {e.name}]"
-
-    try:
-        ocr = _get_paddle_ocr()
-        # 使用 OpenCV 解码，比 PIL 快得多
-        img_bytes = base64.b64decode(base64_img)
-        nparray = np.frombuffer(img_bytes, np.uint8)
-        img_array = cv2.imdecode(nparray, cv2.IMREAD_COLOR)
-
-        if img_array is None:
-            return "[PaddleOCR Error: 图像解码失败]"
-
-        loop = asyncio.get_running_loop()
-        # 执行识别
-        result = await loop.run_in_executor(ocr_executor, lambda: ocr.predict(img_array))
-
-        texts = []
-        if result:
-            # 适配 3.5.0 的返回格式
-            for item in result:
-                if "rec_texts" in item:
-                    texts.extend(item["rec_texts"])
-        return "".join(texts)
-    except Exception as e:
-        return f"[PaddleOCR Error: {str(e)}]"
+    return await _runtime_for_ocr().recognize_paddle(base64_img)
 
 @app.post("/api/ocr-test")
 async def ocr_test():
@@ -491,31 +359,47 @@ async def ocr_test():
 
     return result
 
+_SECRET_FIELDS = [
+    ("ocr", "baidu", "apiKey"),
+    ("ocr", "baidu", "secretKey"),
+    ("ocr", "ocrspace", "apiKey"),
+    ("ocr", "openai", "apiKey"),
+]
+_REDACTED = "••••••••"
+
 # === 扫描计数（按日期持久化到 scan_stats.json） ===
 SCAN_STATS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scan_stats.json")
 _scan_stats_cache: Optional[dict] = None
+_scan_stats_mtime: float = 0.0
+_scan_stats_lock = asyncio.Lock()
 
 def _today_str() -> str:
     from datetime import date
     return date.today().isoformat()
 
 def _load_scan_stats() -> dict:
-    """加载 scan_stats.json，失败返回空 dict"""
-    global _scan_stats_cache
-    if _scan_stats_cache is not None:
+    """加载 scan_stats.json，mtime 变化时重新读取"""
+    global _scan_stats_cache, _scan_stats_mtime
+    try:
+        current_mtime = os.stat(SCAN_STATS_FILE).st_mtime
+    except OSError:
+        current_mtime = 0.0
+    if _scan_stats_cache is not None and current_mtime == _scan_stats_mtime:
         return _scan_stats_cache
     try:
         if os.path.exists(SCAN_STATS_FILE):
             with open(SCAN_STATS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 _scan_stats_cache = data
+                _scan_stats_mtime = current_mtime
                 return data
     except Exception:
         pass
     return {}
 
 def _save_scan_stats(stats: dict):
-    """原子写入 scan_stats.json"""
+    """原子写入 scan_stats.json，同步维护内存缓存"""
+    global _scan_stats_cache, _scan_stats_mtime
     import tempfile
     dir_name = os.path.dirname(SCAN_STATS_FILE) or "."
     with tempfile.NamedTemporaryFile(
@@ -523,6 +407,11 @@ def _save_scan_stats(stats: dict):
     ) as f:
         json.dump(stats, f, ensure_ascii=False, indent=2)
     os.replace(f.name, SCAN_STATS_FILE)
+    _scan_stats_cache = stats
+    try:
+        _scan_stats_mtime = os.stat(SCAN_STATS_FILE).st_mtime
+    except OSError:
+        _scan_stats_mtime = 0.0
 
 def _is_error_text(text: str) -> bool:
     """判断 OCR 结果是否为错误/超时字符串"""
@@ -532,18 +421,19 @@ def _is_error_text(text: str) -> bool:
         return True
     return False
 
-def _maybe_count_scan(text: str):
+async def _maybe_count_scan(text: str):
     """OCR 结果满足条件时计数 +1：去空白后长度 > 6 且非错误字符串"""
-    global _scan_stats_cache
     if _is_error_text(text):
         return
     cleaned = text.replace("\n", "").replace("\r", "").replace(" ", "")
     if len(cleaned) > 6:
-        today = _today_str()
-        stats = _load_scan_stats()
-        stats[today] = stats.get(today, 0) + 1
-        _save_scan_stats(stats)
-        _scan_stats_cache = stats
+        async with _scan_stats_lock:
+            global _scan_stats_cache
+            today = _today_str()
+            stats = _load_scan_stats()
+            stats[today] = stats.get(today, 0) + 1
+            _save_scan_stats(stats)
+            _scan_stats_cache = stats
 
 @app.get("/api/scan-stats")
 async def get_scan_stats():
@@ -575,23 +465,57 @@ async def get_scan_stats_month(month: str = ""):
 async def reset_scan_stats(request: Request):
     data = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
     target_date = data.get("date") or _today_str()
-    stats = _load_scan_stats()
-    stats[target_date] = 0
-    _save_scan_stats(stats)
-    global _scan_stats_cache
-    _scan_stats_cache = stats
+    async with _scan_stats_lock:
+        global _scan_stats_cache
+        stats = _load_scan_stats()
+        stats[target_date] = 0
+        _save_scan_stats(stats)
+        _scan_stats_cache = stats
     return {"success": True, "date": target_date, "count": 0}
+
+def _redact_config(cfg: dict) -> dict:
+    """返回脱敏副本，密钥字段替换为占位符"""
+    import copy
+    redacted = copy.deepcopy(cfg)
+    for path in _SECRET_FIELDS:
+        obj = redacted
+        for key in path[:-1]:
+            if not isinstance(obj, dict) or key not in obj:
+                obj = None
+                break
+            obj = obj[key]
+        if isinstance(obj, dict) and path[-1] in obj and obj[path[-1]]:
+            obj[path[-1]] = _REDACTED
+    return redacted
+
+def _merge_secrets(existing: dict, incoming: dict) -> dict:
+    """合并密钥：incoming 非空且非占位符则更新，否则保留 existing"""
+    for path in _SECRET_FIELDS:
+        obj_in, obj_ex = incoming, existing
+        for key in path[:-1]:
+            obj_in = obj_in.get(key, {}) if isinstance(obj_in, dict) else {}
+            obj_ex = obj_ex.get(key, {}) if isinstance(obj_ex, dict) else {}
+        if not isinstance(obj_in, dict) or not isinstance(obj_ex, dict):
+            continue
+        field = path[-1]
+        new_val = obj_in.get(field, "")
+        if not new_val or new_val == _REDACTED:
+            # 前端没改密钥 → 保留原值
+            obj_in[field] = obj_ex.get(field, "")
+    return incoming
 
 @app.get("/api/config")
 async def get_config():
-    return JSONResponse(load_json(CONFIG_FILE, {}))
+    return JSONResponse(_redact_config(load_json(CONFIG_FILE, {})))
 
 @app.post("/api/config")
 async def save_config(request: Request):
-    """保存配置（admin面板使用）"""
+    """保存配置（admin面板使用），密钥为空/占位符时保留原值"""
     try:
-        new_config = await request.json()
-        save_json(CONFIG_FILE, new_config)
+        incoming = await request.json()
+        existing = load_json(CONFIG_FILE, {})
+        merged = _merge_secrets(existing, incoming)
+        save_json(CONFIG_FILE, merged)
         return {"success": True}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -919,7 +843,7 @@ async def rest_ocr(request: Request):
             text = await asyncio.wait_for(dispatch_ocr(image_data), timeout=60)
         except asyncio.TimeoutError:
             text = "[Timeout: OCR 引擎响应超时，请重试]"
-    _maybe_count_scan(text)
+    await _maybe_count_scan(text)
     return {"text": text}
 
 # ================================
@@ -1022,7 +946,7 @@ async def websocket_ocr(websocket: WebSocket):
             else:
                 consecutive_empty_frames = 0
 
-            _maybe_count_scan(ocr_text)
+            await _maybe_count_scan(ocr_text)
             if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} sending 'success'")
             await websocket.send_json({
                 "status": "success",
