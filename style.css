@@ -67,18 +67,25 @@ html, body {
    Camera Video
    ============================================ */
 #video {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   object-fit: cover;
   z-index: 1;
-  /* 强制GPU渲染，缓解WebKit黑帧问题 (Bug #217578) */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  transform: scaleX(1); /* 强制触发一个基本的渲染层，不使用 translateZ 以防报错 */
+  background-color: #000;
+}
+
+/* 仅在 iOS 设备（支持 -webkit-touch-callout）上强制GPU渲染，缓解WebKit黑帧问题，且不影响安卓 */
+@supports (-webkit-touch-callout: none) {
+  #video {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
 }
 
 /* ============================================
@@ -111,6 +118,48 @@ html, body {
   backdrop-filter: blur(10px) saturate(160%);
   -webkit-backdrop-filter: blur(10px) saturate(160%);
   pointer-events: auto;
+}
+
+/* ============================================
+   Daily Counter
+   ============================================ */
+.scan-counter {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 16px));
+  right: 16px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: var(--shadow-soft);
+  z-index: 50;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.scan-counter:active {
+  transform: scale(0.95);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.scan-counter-label {
+  font-size: 10px;
+  color: var(--color-primary-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.scan-counter-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ============================================

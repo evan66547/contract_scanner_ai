@@ -25,6 +25,10 @@ let wsReconnectAttempts = 0;
 const WS_MAX_RECONNECT = 10;
 const WS_BASE_DELAY = 1000;
 
+// 每日扫描计数
+let dailyScanCount = 0;
+let lastScanDate = '';
+
 // 连接模式
 let networkInfo = null;
 let currentConnMode = 'usb'; // auto-detected
@@ -40,6 +44,7 @@ const matchedTargetEl = document.getElementById('matched-target');
 const debugEl = document.getElementById('debug');
 const toggleBtn = document.getElementById('toggle-btn');
 const scanRegionEl = document.querySelector('.scan-region');
+const scanCounterValEl = document.getElementById('scan-counter-val');
 
 // SVG 图标映射（替换 emoji，保证跨平台渲染一致）
 const ICONS = {
@@ -408,6 +413,11 @@ function initWebSocket() {
       try {
         const result = JSON.parse(event.data);
         const text = result.text || '';
+
+        // 方案A：只要去除空格后的文字超过6个字，即记作一次扫描
+        if (text.replace(/\s/g, '').length > 6) {
+          incrementDailyCount();
+        }
 
         if (result.status === 'error') {
           updateStatus(STATE.NOT_MATCHED, '❌', '识别错误', text.substring(0, 100));
@@ -1233,5 +1243,54 @@ async function connectAdbWifi() {
     }
   } catch (e) {
     if (statusEl) statusEl.textContent = '请求失败: ' + e.message;
+  }
+}
+
+// === 每日计数器逻辑 ===
+function getTodayDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function initDailyCounter() {
+  const today = getTodayDateStr();
+  const storedDate = localStorage.getItem('scanDate');
+  if (storedDate === today) {
+    dailyScanCount = parseInt(localStorage.getItem('scanCount') || '0', 10);
+  } else {
+    dailyScanCount = 0;
+    localStorage.setItem('scanDate', today);
+    localStorage.setItem('scanCount', 0);
+  }
+  updateDailyCounterUI();
+}
+
+function incrementDailyCount() {
+  const today = getTodayDateStr();
+  const storedDate = localStorage.getItem('scanDate');
+  
+  if (storedDate !== today) {
+    dailyScanCount = 1;
+    localStorage.setItem('scanDate', today);
+  } else {
+    dailyScanCount++;
+  }
+  localStorage.setItem('scanCount', dailyScanCount);
+  updateDailyCounterUI();
+}
+
+function resetDailyCount() {
+  if (confirm(t('app.confirm_reset_count', '确定要重置今日的扫描计数吗？'))) {
+    dailyScanCount = 0;
+    const today = getTodayDateStr();
+    localStorage.setItem('scanDate', today);
+    localStorage.setItem('scanCount', 0);
+    updateDailyCounterUI();
+  }
+}
+
+function updateDailyCounterUI() {
+  if (scanCounterValEl) {
+    scanCounterValEl.textContent = dailyScanCount;
   }
 }

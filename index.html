@@ -8,10 +8,15 @@
   <title>Contract Scanner</title>
   <link rel="manifest" href="manifest.json">
   <!-- Removed external fonts for offline support -->
-  <link rel="stylesheet" href="style.css?v=20260507-v2">
+  <link rel="stylesheet" href="style.css?v=20260522-v9">
 </head>
 
 <body>
+  <!-- 每日扫描计数器 -->
+  <div id="scan-counter" class="scan-counter" onclick="resetDailyCount()">
+    <span class="scan-counter-label">今日扫描</span>
+    <span id="scan-counter-val" class="scan-counter-val">0</span>
+  </div>
   <!-- 状态覆盖层 -->
   <div id="overlay" class="overlay scanning">
     <div class="status-container">
@@ -25,7 +30,8 @@
   </div>
 
   <!-- 摄像头视频 -->
-  <video id="video" autoplay playsinline muted></video>
+  <!-- Android / 微信 X5 内核兼容性属性，防止视频被劫持变空白 -->
+  <video id="video" autoplay playsinline webkit-playsinline="true" x5-video-player-type="h5" x5-video-player-fullscreen="true" muted></video>
 
   <!-- 扫描区域指示框 -->
   <div class="scan-region">
@@ -152,7 +158,7 @@
 
   <!-- AI OCR via Ollama (服务端) -->
   <script src="i18n.js?v=20260506-lan"></script>
-  <script src="app.js?v=20260507-v3"></script>
+  <script src="app.js?v=20260522-v9"></script>
 </body>
 
 </html>
