@@ -9,6 +9,13 @@
 
 ---
 
+## Development Workflow / 开发工作流
+
+- Keep `main` as the stable branch; do feature work on a dedicated branch such as `codex-pp-ocrv6-tiny`.
+- Use project-local Git worktrees under `.worktrees/` or `worktrees/` when parallel work is needed. Both paths are ignored by Git.
+- Before committing, run the smallest relevant check for the change. For OCR/runtime changes, use `make smoke` or `make live-check`.
+- Do not commit local runtime data such as `config.json`, target/company lists, logs, Excel/CSV files, or generated scan stats.
+
 <span id="english"></span>
 ## 🇬🇧 English
 
