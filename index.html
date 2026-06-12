@@ -13,9 +13,21 @@
 
 <body>
   <!-- 每日扫描计数器 -->
-  <div id="scan-counter" class="scan-counter" onclick="resetDailyCount()">
-    <span class="scan-counter-label">今日扫描</span>
-    <span id="scan-counter-val" class="scan-counter-val">0</span>
+  <div id="scan-counter" class="scan-counter">
+    <div class="scan-counter-main">
+      <div class="scan-counter-metric">
+        <span class="scan-counter-label">总数</span>
+        <span id="scan-counter-total-val" class="scan-counter-val">0</span>
+      </div>
+      <div class="scan-counter-metric">
+        <span class="scan-counter-label">本机</span>
+        <span id="scan-counter-local-val" class="scan-counter-val">0</span>
+      </div>
+    </div>
+    <div class="scan-counter-actions">
+      <button id="scan-count-minus" class="scan-counter-btn" type="button" aria-label="减少扫描次数" onclick="adjustDailyCount(-1)">−</button>
+      <button id="scan-count-plus" class="scan-counter-btn" type="button" aria-label="增加扫描次数" onclick="adjustDailyCount(1)">+</button>
+    </div>
   </div>
   <!-- 状态覆盖层 -->
   <div id="overlay" class="overlay scanning">

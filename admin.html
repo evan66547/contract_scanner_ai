@@ -22,7 +22,7 @@
             --danger-color: #EF4444;     /* red-500 */
             --ai-color: #8B5CF6;         /* violet-500 */
             --border-color: #E2E8F0;     /* slate-200 */
-            --border-radius: 16px;
+            --border-radius: 10px;
             --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -47,7 +47,7 @@
             text-align: center; 
             margin-bottom: 8px; 
             font-weight: 700; 
-            letter-spacing: -0.5px;
+            letter-spacing: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -88,7 +88,7 @@
             justify-content: flex-start;
             font-size: 32px;
             font-weight: 700;
-            letter-spacing: -0.03em;
+            letter-spacing: 0;
             color: #0F172A;
             margin: 0 0 8px 0;
         }
@@ -108,7 +108,7 @@
             cursor: pointer;
             padding: 5px 14px;
             border-radius: 20px;
-            letter-spacing: 0.02em;
+            letter-spacing: 0;
             transition: all 0.2s;
             font-family: inherit;
         }
@@ -130,7 +130,7 @@
             border-radius: 100px;
             vertical-align: middle;
             margin-left: 10px;
-            letter-spacing: 0.05em;
+            letter-spacing: 0;
             box-shadow: 0 2px 12px rgba(13,148,136,0.3);
         }
         .ai-mark::before {
@@ -289,7 +289,7 @@
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 15px; }
         .stat-item { background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .stat-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; font-weight: 600;}
+        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0; margin-bottom: 6px; font-weight: 600;}
         .stat-value { font-size: 24px; font-weight: 700; color: var(--accent-color); }
         .stat-value.ai { color: var(--ai-color); }
 
@@ -318,6 +318,467 @@
             border-color: #94a3b8;
             background: #F8FAFC;
         }
+
+        /* ===== Desktop Admin Console Layout ===== */
+        body {
+            padding: 24px;
+            align-items: flex-start;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1440px;
+            display: grid;
+            grid-template-columns: minmax(300px, 0.9fr) minmax(380px, 1.15fr) minmax(340px, 1fr);
+            grid-template-areas:
+                "header header header"
+                "overview overview overview"
+                "calendar ocr utility"
+                "connection settings roi"
+                "logs logs import"
+                "save save save"
+                "status status status";
+            gap: 20px;
+            align-items: start;
+        }
+
+        .page-header,
+        .card,
+        .two-column,
+        #status-msg {
+            min-width: 0;
+        }
+
+        .page-header {
+            grid-area: header;
+            margin-bottom: 0;
+            padding-top: 20px;
+        }
+
+        .overview-card { grid-area: overview; }
+        .connection-card { grid-area: connection; }
+        .calendar-card { grid-area: calendar; }
+        .ocr-card { grid-area: ocr; }
+        .import-card { grid-area: import; }
+        .settings-pair { grid-area: settings; grid-template-columns: 1fr; gap: 20px; }
+        .roi-card { grid-area: roi; }
+        .utility-pair { grid-area: utility; grid-template-columns: 1fr; gap: 20px; }
+        .logs-card { grid-area: logs; }
+        .save-bar { grid-area: save; display: flex; justify-content: center; }
+        #status-msg { grid-area: status; margin-top: 0; }
+
+        .card {
+            margin-bottom: 0;
+            padding: 22px;
+            border-color: #DCE5EF;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            height: auto;
+        }
+
+        .card:hover {
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        }
+
+        .card h2 {
+            font-size: 1.05em;
+            margin-bottom: 18px;
+        }
+
+        .overview-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            align-items: end;
+        }
+
+        .overview-card h2 {
+            grid-column: 1 / -1;
+            margin-bottom: 0;
+        }
+
+        .overview-card .stats-grid {
+            margin-top: 0;
+        }
+
+        .overview-card .btn-group {
+            margin-top: 0;
+            min-width: 360px;
+            justify-content: flex-end;
+        }
+
+        .overview-card .btn-group .btn {
+            flex: 0 0 auto;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .stat-item {
+            border-radius: 8px;
+            padding: 14px;
+            text-align: left;
+        }
+
+        .stat-item:hover {
+            transform: none;
+        }
+
+        .stat-value {
+            font-size: 22px;
+        }
+
+        .connection-card {
+            position: static;
+        }
+
+        .connection-card > div:first-of-type {
+            background: #EFF6FF !important;
+            border-color: #BFDBFE !important;
+        }
+
+        .ocr-card {
+            border-top-color: #DCE5EF;
+        }
+
+        .import-card {
+            border-top-color: #DCE5EF;
+        }
+
+        .settings-pair > .card,
+        .utility-pair > .card {
+            height: auto;
+        }
+
+        .settings-pair,
+        .utility-pair {
+            display: grid;
+            align-content: start;
+        }
+
+        .settings-pair {
+            grid-template-rows: auto auto;
+        }
+
+        .utility-pair {
+            grid-template-rows: auto auto;
+        }
+
+        .form-group {
+            align-items: flex-start;
+            gap: 14px;
+        }
+
+        .form-group label:first-child {
+            min-width: 0;
+        }
+
+        input[type="range"] {
+            width: min(180px, 42vw);
+        }
+
+        .settings-pair input[type="range"],
+        .roi-card input[type="range"] {
+            width: min(190px, 100%);
+        }
+
+        .roi-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 18px 28px;
+            align-items: start;
+        }
+
+        .roi-card h2,
+        .roi-card .info-box {
+            grid-column: 1 / -1;
+        }
+
+        .roi-card .preview-canvas {
+            max-width: 290px;
+            margin-top: 0;
+        }
+
+        .roi-controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .roi-control {
+            display: grid;
+            grid-template-columns: 72px minmax(72px, 1fr) 42px;
+            gap: 10px;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .roi-control label {
+            min-width: 0;
+            font-weight: 700;
+            color: #0F172A;
+            line-height: 1.25;
+        }
+
+        .roi-control input[type="range"] {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .roi-control .range-value {
+            width: 42px;
+            text-align: right;
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .logs-card #log-viewer {
+            max-height: 320px;
+        }
+
+        .logs-card {
+            border-top-color: #DCE5EF;
+        }
+
+        .logs-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 14px;
+            margin-bottom: 14px;
+        }
+
+        .logs-header h2 {
+            border-bottom: 0;
+            padding-bottom: 0;
+            margin-bottom: 4px;
+        }
+
+        .logs-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .logs-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .logs-toolbar select {
+            width: 96px;
+            height: 32px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .logs-status-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .log-stat {
+            background: #F8FAFC;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 9px 10px;
+        }
+
+        .log-stat__label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .log-stat__value {
+            font-size: 13px;
+            color: #0F172A;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .log-viewer {
+            font-family: "SF Mono", Menlo, Consolas, monospace;
+            font-size: 11px;
+            line-height: 1.55;
+            background: #0B1120;
+            color: #CBD5E1;
+            border: 1px solid #1E293B;
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 320px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .log-entry {
+            border-left: 3px solid #334155;
+            padding: 5px 8px 5px 10px;
+            margin-bottom: 5px;
+            background: rgba(15, 23, 42, 0.76);
+            border-radius: 0 6px 6px 0;
+        }
+
+        .log-entry--error {
+            color: #FCA5A5;
+            border-left-color: #EF4444;
+            background: rgba(127, 29, 29, 0.24);
+        }
+
+        .log-entry--warning {
+            color: #FDE68A;
+            border-left-color: #F59E0B;
+            background: rgba(120, 53, 15, 0.22);
+        }
+
+        .log-entry--info {
+            color: #C4D3E5;
+        }
+
+        .log-entry__meta {
+            color: #7DD3FC;
+            font-weight: 700;
+            margin-right: 6px;
+        }
+
+        .log-empty {
+            color: #94A3B8;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .save-bar .btn {
+            min-width: 240px;
+        }
+
+        @media (max-width: 1180px) {
+            body {
+                padding: 20px;
+            }
+
+            .container {
+                max-width: 980px;
+                grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
+                grid-template-areas:
+                    "header header"
+                    "overview overview"
+                    "calendar ocr"
+                    "settings settings"
+                    "connection import"
+                    "utility utility"
+                    "roi roi"
+                    "logs logs"
+                    "save save"
+                    "status status";
+                align-items: stretch;
+            }
+
+            .settings-pair,
+            .utility-pair {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-rows: none;
+            }
+
+            .calendar-card,
+            .ocr-card,
+            .settings-pair,
+            .connection-card,
+            .import-card,
+            .utility-pair,
+            .logs-card,
+            .roi-card {
+                min-height: 0;
+            }
+
+            .overview-card {
+                grid-template-columns: 1fr;
+            }
+
+            .overview-card .btn-group {
+                min-width: 0;
+                justify-content: flex-start;
+            }
+
+            .roi-card {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .roi-card h2,
+            .roi-card .info-box {
+                grid-column: auto;
+            }
+
+            .roi-controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 820px) {
+            body {
+                padding: 16px;
+            }
+
+            .container {
+                display: block;
+                max-width: 100%;
+            }
+
+            .page-header,
+            .card,
+            .two-column {
+                margin-bottom: 16px;
+                height: auto;
+            }
+
+            .connection-card {
+                position: static;
+            }
+
+            .stats-grid,
+            .settings-pair,
+            .utility-pair,
+            .two-column {
+                grid-template-columns: 1fr;
+                grid-template-rows: none;
+            }
+
+            .overview-card {
+                display: block;
+            }
+
+            .overview-card .btn-group {
+                margin-top: 16px;
+            }
+
+            .form-group {
+                flex-wrap: wrap;
+            }
+
+            input[type="range"] {
+                width: 100%;
+            }
+
+            .roi-controls {
+                grid-template-columns: 1fr;
+            }
+
+            .roi-control {
+                grid-template-columns: 86px minmax(0, 1fr) 42px;
+            }
+        }
     </style>
 <script src="i18n.js?v=1"></script>
 </head>
@@ -329,7 +790,7 @@
   <div class="subtitle" data-i18n="admin.subtitle">GLM-OCR Vision Model · Ollama Local Engine</div>
 </div>
 <!-- 服务器状态 -->
-<div class="card">
+<div class="card overview-card">
 <h2><i class="icon" data-lucide="server" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.sys">System Status</span></h2>
 <div class="stats-grid">
 <div class="stat-item">
@@ -363,7 +824,7 @@
 </div>
 </div>
 <!-- 扫描统计日历 -->
-<div class="card" id="scan-calendar-card">
+<div class="card calendar-card" id="scan-calendar-card">
 <h2><i class="icon" data-lucide="calendar" style="color:#2563eb"></i> 扫描统计</h2>
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
 <button class="btn btn-secondary btn-sm" onclick="calPrev()" style="padding:4px 12px">◀</button>
@@ -377,8 +838,28 @@
 </div>
 </div>
 <!-- 无线调试 & 多设备管理 -->
-<div class="card" id="wifi-card">
+<div class="card connection-card" id="wifi-card">
 <h2 style="display:flex;align-items:center;gap:8px"><i class="icon" data-lucide="wifi" style="color:var(--accent-color)"></i> 手机连接<span id="adb-led" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#94a3b8;margin-left:4px;box-shadow:0 0 6px rgba(148,163,184,0.4);transition:background 0.3s"></span></h2>
+
+<!-- 局域网直连 -->
+<div style="margin-bottom:16px;padding:12px 14px;background:rgba(37,99,235,0.04);border:1px solid rgba(37,99,235,0.14);border-radius:10px">
+<div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">同一 Wi-Fi 直连</div>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+<div style="flex:1;min-width:220px">
+<div style="font-size:12px;color:#64748b;margin-bottom:4px">手机和电脑在同一局域网时，手机浏览器访问：</div>
+<code id="lan-url" style="display:block;background:rgba(0,0,0,0.06);padding:8px 10px;border-radius:6px;font-family:monospace;font-size:13px;word-break:break-all">检测中...</code>
+<div id="lan-interfaces" style="font-size:11px;color:#64748b;margin-top:6px"></div>
+</div>
+<img id="lan-qr" alt="LAN QR" style="width:92px;height:92px;border:1px solid rgba(37,99,235,0.16);border-radius:8px;background:#fff;padding:4px;display:none"/>
+</div>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+<button class="btn btn-secondary btn-sm" onclick="copyLanUrl()">复制地址</button>
+<button class="btn btn-secondary btn-sm" onclick="openLanUrl()">本机打开测试</button>
+</div>
+<div style="font-size:11px;color:#92400e;line-height:1.6;margin-top:10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.16);border-radius:8px;padding:8px 10px">
+Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> 加入上方地址；iPhone/Safari 必须使用下方 Tailscale HTTPS。
+</div>
+</div>
 
 <!-- 步骤引导 -->
 <div style="display:flex;gap:6px;margin-bottom:16px;padding:10px 14px;background:linear-gradient(135deg,#f0fdfa,#f8fafc);border-radius:10px;font-size:12px;border:1px solid rgba(20,184,166,0.1)">
@@ -483,22 +964,35 @@
 </div>
 
 <!-- 日志查看器 -->
-<div class="card" id="log-card">
-<h2 style="display:flex;align-items:center;gap:8px"><i class="icon" data-lucide="file-text" style="color:var(--accent-color)"></i> 系统日志 <span style="font-size:11px;color:var(--text-muted);font-weight:400">AI 调试用</span></h2>
-<button onclick="toggleLogCard()" style="font-size:11px;color:var(--text-muted);background:none;border:1px solid var(--border-color);padding:4px 12px;border-radius:6px;cursor:pointer;margin-bottom:8px">显示日志 ▾</button>
-<div id="log-content" style="display:none">
-<div id="log-viewer" style="font-family:monospace;font-size:11px;line-height:1.5;background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">
-加载日志中...
+<div class="card logs-card" id="log-card">
+<div class="logs-header">
+<div>
+<h2><i class="icon" data-lucide="file-text" style="color:var(--accent-color)"></i> 系统日志</h2>
+<div class="logs-subtitle">实时查看服务端日志、OCR 输出、WebSocket 连接和异常事件。</div>
 </div>
-<div style="display:flex;gap:8px;margin-top:8px">
-<button class="btn btn-secondary btn-sm" onclick="refreshLogs()">刷新</button>
-<button class="btn btn-secondary btn-sm" onclick="downloadLogs()">下载日志</button>
-<button class="btn btn-secondary btn-sm" onclick="clearLogViewer()">清空显示</button>
+<div class="logs-toolbar">
+<select id="log-lines" onchange="refreshLogs(true)" aria-label="日志行数">
+<option value="100">100 行</option>
+<option value="200" selected>200 行</option>
+<option value="500">500 行</option>
+</select>
+<button id="log-refresh-btn" class="btn btn-secondary btn-sm" onclick="refreshLogs(true)"><i class="icon-sm" data-lucide="refresh-cw"></i> 刷新</button>
+<button id="log-pause-btn" class="btn btn-secondary btn-sm" onclick="toggleLogAutoRefresh()"><i class="icon-sm" data-lucide="pause"></i> 暂停</button>
+<button class="btn btn-secondary btn-sm" onclick="downloadLogs()"><i class="icon-sm" data-lucide="download"></i> 下载</button>
+<button class="btn btn-secondary btn-sm" onclick="clearLogViewer()"><i class="icon-sm" data-lucide="eraser"></i> 清空显示</button>
 </div>
+</div>
+<div class="logs-status-row">
+<div class="log-stat"><div class="log-stat__label">状态</div><div class="log-stat__value" id="log-load-status">加载中</div></div>
+<div class="log-stat"><div class="log-stat__label">记录</div><div class="log-stat__value" id="log-line-count">--</div></div>
+<div class="log-stat"><div class="log-stat__label">异常</div><div class="log-stat__value" id="log-alert-count">--</div></div>
+</div>
+<div id="log-viewer" class="log-viewer" role="log" aria-live="polite">
+<div class="log-empty">加载日志中...</div>
 </div>
 </div>
 <!-- OCR 引擎配置 -->
-<div class="card" id="ocr-card">
+<div class="card ocr-card" id="ocr-card">
 <h2><i class="icon" data-lucide="brain" style="color:var(--ai-color)"></i> <span data-i18n="admin.card.ocr">OCR Engine</span> <span class="ai-badge">AI</span></h2>
 <!-- 引擎选择 - 按钮式切换 -->
 <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
@@ -610,7 +1104,7 @@
 </div>
 </div>
 <!-- 数据导入 -->
-<div class="card" id="import-card">
+<div class="card import-card" id="import-card">
 <h2><i class="icon" data-lucide="arrow-down-to-line" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.import">Data Import</span></h2>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:15px">
 <a class="btn btn-secondary" href="/api/template" style="display:flex;text-decoration:none"><i class="icon-sm" data-lucide="file-down"></i> <span data-i18n="admin.btn.template">Template</span></a>
@@ -665,7 +1159,7 @@
 <!-- 数据查看区域 -->
 <div id="view-imported-data" style="display:none;margin-top:15px"></div>
 </div>
-<div class="two-column">
+<div class="two-column settings-pair">
 <!-- 扫描设置 -->
 <div class="card">
 <h2><i class="icon" data-lucide="camera" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.camera">Scanning Settings</span></h2>
@@ -716,32 +1210,28 @@
 </div>
 </div>
 <!-- ROI区域 -->
-<div class="card">
+<div class="card roi-card">
 <h2><i class="icon" data-lucide="crop" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.roi">Recognition ROI</span></h2>
-<div class="two-column" style="gap:24px;margin-bottom:16px;">
-<div>
-<div class="form-group" style="margin-bottom:12px;">
+<div class="roi-controls">
+<div class="roi-control">
 <label><span data-i18n="admin.lbl.roix">ROI X</span></label>
-<input id="roi-x" max="90" min="0" step="1" style="width:140px;" type="range"/>
+<input id="roi-x" max="90" min="0" step="1" type="range"/>
 <span class="range-value" id="roi-x-val">10%</span>
 </div>
-<div class="form-group" style="margin-bottom:12px;">
+<div class="roi-control">
 <label><span data-i18n="admin.lbl.roiy">ROI Y</span></label>
-<input id="roi-y" max="90" min="0" step="1" style="width:140px;" type="range"/>
+<input id="roi-y" max="90" min="0" step="1" type="range"/>
 <span class="range-value" id="roi-y-val">38%</span>
 </div>
-</div>
-<div>
-<div class="form-group" style="margin-bottom:12px;">
+<div class="roi-control">
 <label><span data-i18n="admin.lbl.roiw">ROI Width</span></label>
-<input id="roi-w" max="100" min="10" step="1" style="width:140px;" type="range"/>
+<input id="roi-w" max="100" min="10" step="1" type="range"/>
 <span class="range-value" id="roi-w-val">80%</span>
 </div>
-<div class="form-group" style="margin-bottom:12px;">
+<div class="roi-control">
 <label><span data-i18n="admin.lbl.roih">ROI Height</span></label>
-<input id="roi-h" max="100" min="10" step="1" style="width:140px;" type="range"/>
+<input id="roi-h" max="100" min="10" step="1" type="range"/>
 <span class="range-value" id="roi-h-val">25%</span>
-</div>
 </div>
 </div>
 <div class="preview-canvas" id="roi-preview">
@@ -757,7 +1247,7 @@
 <div><strong data-i18n="admin.info.roi_title">Feature Note:</strong> <span data-i18n="admin.info.roi_desc">The green box is the actual cropped area sent to AI. Narrowing it speeds up OCR significantly.</span></div>
 </div>
 </div>
-<div class="two-column">
+<div class="two-column utility-pair">
 <!-- 调试选项 -->
 <div class="card">
 <h2><i class="icon" data-lucide="settings-2" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.debug">Debug Options</span></h2>
@@ -787,7 +1277,7 @@
 </div>
 </div>
 </div>
-<div style="display:flex;justify-content:center"><button class="btn btn-primary btn-lg" onclick="saveConfig()"><i class="icon-sm" data-lucide="save"></i> <span data-i18n="admin.btn.save">Save &amp; Apply Config</span></button></div>
+<div class="save-bar"><button class="btn btn-primary btn-lg" onclick="saveConfig()"><i class="icon-sm" data-lucide="save"></i> <span data-i18n="admin.btn.save">Save &amp; Apply Config</span></button></div>
 <div id="status-msg"></div>
 </div>
 <script>
@@ -795,6 +1285,7 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
         var currentConfig = {};
+        var lanInfo = null;
 
         async function openScanner() {
             showStatus('📱 正在手机上打开扫描器...', 'var(--accent-color)');
@@ -814,6 +1305,57 @@
 
         function openAdmin() { location.reload(); }
 
+        async function loadLanAccess() {
+            const urlEl = document.getElementById('lan-url');
+            const qrEl = document.getElementById('lan-qr');
+            const ifaceEl = document.getElementById('lan-interfaces');
+            try {
+                const res = await fetch('/api/network-info?t=' + Date.now());
+                lanInfo = await res.json();
+                if (!lanInfo.wifi_url) {
+                    if (urlEl) urlEl.textContent = '未检测到局域网 IP';
+                    if (ifaceEl) ifaceEl.textContent = '请确认电脑已连接 Wi-Fi 或以太网';
+                    return;
+                }
+                if (urlEl) urlEl.textContent = lanInfo.wifi_url;
+                if (ifaceEl) {
+                    const interfaces = (lanInfo.interfaces || []).map(i => i.name + ' · ' + i.type + ' · ' + i.ip).join(' / ');
+                    ifaceEl.textContent = interfaces || '';
+                }
+                if (qrEl) {
+                    qrEl.src = '/api/qr-code?data=' + encodeURIComponent(lanInfo.wifi_url);
+                    qrEl.style.display = 'block';
+                }
+            } catch (e) {
+                if (urlEl) urlEl.textContent = '局域网信息加载失败';
+                if (ifaceEl) ifaceEl.textContent = e.message;
+                if (qrEl) qrEl.style.display = 'none';
+            }
+        }
+
+        async function copyLanUrl() {
+            const url = lanInfo && lanInfo.wifi_url;
+            if (!url) {
+                showStatus('⚠️ 暂无可复制的局域网地址', 'red');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(url);
+                showStatus('✅ 已复制局域网地址', 'green');
+            } catch (e) {
+                showStatus('⚠️ 复制失败，请手动复制地址', 'red');
+            }
+        }
+
+        function openLanUrl() {
+            const url = lanInfo && lanInfo.wifi_url;
+            if (!url) {
+                showStatus('⚠️ 暂无可打开的局域网地址', 'red');
+                return;
+            }
+            window.open(url, '_blank');
+        }
+
         async function adminReset() {
             if (!confirm('确定要重置扫描器吗？这将断开所有手机连接。')) return;
             showStatus('🔄 正在重置扫描器...', 'var(--accent-color)');
@@ -831,20 +1373,48 @@
             }
         }
 
+        async function fetchJsonOrThrow(url, label) {
+            let res;
+            try {
+                res = await fetch(url);
+            } catch (e) {
+                throw new Error(label + '网络请求失败: ' + e.message);
+            }
+
+            let payload = null;
+            const text = await res.text();
+            if (text) {
+                try {
+                    payload = JSON.parse(text);
+                } catch (e) {
+                    throw new Error(label + '响应不是有效 JSON: ' + text.slice(0, 180));
+                }
+            }
+
+            if (!res.ok) {
+                const detail = payload?.detail || payload?.error || payload?.message || text || res.statusText;
+                throw new Error(label + 'HTTP ' + res.status + ': ' + detail);
+            }
+
+            return payload;
+        }
+
         async function loadConfig() {
             try {
-                const res = await fetch('/api/config?t=' + Date.now());
-                currentConfig = await res.json();
-                renderConfig();
+                currentConfig = await fetchJsonOrThrow('/api/config?t=' + Date.now(), '配置接口');
+                try {
+                    renderConfig();
+                } catch (e) {
+                    throw new Error('配置渲染失败: ' + e.message);
+                }
                 updateStats();
 
                 // Load target count
-                const compRes = await fetch('/api/targets?t=' + Date.now());
-                const targets = await compRes.json();
+                const targets = await fetchJsonOrThrow('/api/targets?t=' + Date.now(), '名单统计接口');
                 document.getElementById('target-count').textContent = targets.length;
             } catch (e) {
                 console.error('Failed to load config', e);
-                showStatus('⚠️ 加载配置失败', 'red');
+                showStatus('⚠️ 加载配置失败: ' + e.message, 'red');
             }
         }
 
@@ -1923,31 +2493,101 @@
         }
 
         // === 日志查看器 ===
-        async function refreshLogs() {
-            try {
-                const res = await fetch('/api/logs?lines=200&t=' + Date.now());
-                const data = await res.json();
-                const viewer = document.getElementById('log-viewer');
-                if (data.logs) {
-                    const lines = data.logs.trim().split('\n');
-                    viewer.textContent = '';
-                    lines.forEach(line => {
-                        const div = document.createElement('div');
-                        let color = '#cbd5e1';
-                        if (line.includes('[ERROR]')) color = '#fca5a5';
-                        else if (line.includes('[WARNING]')) color = '#fde68a';
-                        else if (line.includes('[INFO]')) color = '#94a3b8';
-                        div.style.color = color;
-                        div.style.minHeight = '1.4em';
-                        div.textContent = line;
-                        viewer.appendChild(div);
-                    });
-                    viewer.scrollTop = viewer.scrollHeight;
-                } else {
-                    viewer.textContent = '暂无日志';
+        let logAutoRefresh = true;
+        let logRefreshInFlight = false;
+
+        function setLogStatus(statusText, lineCount, alertCount) {
+            const statusEl = document.getElementById('log-load-status');
+            const lineEl = document.getElementById('log-line-count');
+            const alertEl = document.getElementById('log-alert-count');
+            if (statusEl) statusEl.textContent = statusText;
+            if (lineEl) lineEl.textContent = lineCount;
+            if (alertEl) {
+                alertEl.textContent = alertCount;
+                alertEl.style.color = alertCount > 0 ? 'var(--danger-color)' : 'var(--success-color)';
+            }
+        }
+
+        function splitLogEntries(rawLogs) {
+            const lines = String(rawLogs || '').replace(/\r\n/g, '\n').trim().split('\n');
+            const entries = [];
+            let current = '';
+            const startsEntry = line => /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[/.test(line) || /^INFO:\s+/.test(line) || /^Traceback/.test(line);
+            lines.forEach(line => {
+                if (startsEntry(line)) {
+                    if (current) entries.push(current);
+                    current = line;
+                } else if (current) {
+                    current += '\n' + line;
+                } else if (line) {
+                    current = line;
                 }
+            });
+            if (current) entries.push(current);
+            return entries;
+        }
+
+        function renderLogEntries(entries) {
+            const viewer = document.getElementById('log-viewer');
+            if (!viewer) return;
+            viewer.textContent = '';
+            if (!entries.length) {
+                const empty = document.createElement('div');
+                empty.className = 'log-empty';
+                empty.textContent = '暂无日志';
+                viewer.appendChild(empty);
+                return;
+            }
+
+            entries.forEach(entry => {
+                const div = document.createElement('div');
+                const isError = /\[ERROR\]|Traceback|Exception|Error|500/.test(entry);
+                const isWarning = /\[WARNING\]|Timeout|超时|异常|失败|failed|422/.test(entry);
+                div.className = 'log-entry ' + (isError ? 'log-entry--error' : isWarning ? 'log-entry--warning' : 'log-entry--info');
+                const firstLineEnd = entry.indexOf('\n');
+                const firstLine = firstLineEnd >= 0 ? entry.slice(0, firstLineEnd) : entry;
+                const rest = firstLineEnd >= 0 ? entry.slice(firstLineEnd) : '';
+                const meta = firstLine.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\[[A-Z]+\]\s+\[[^\]]+\])/);
+                if (meta) {
+                    const metaSpan = document.createElement('span');
+                    metaSpan.className = 'log-entry__meta';
+                    metaSpan.textContent = meta[1];
+                    div.appendChild(metaSpan);
+                    div.appendChild(document.createTextNode(firstLine.slice(meta[1].length) + rest));
+                } else {
+                    div.textContent = entry;
+                }
+                viewer.appendChild(div);
+            });
+            viewer.scrollTop = viewer.scrollHeight;
+        }
+
+        async function refreshLogs(force = false) {
+            if ((!force && !logAutoRefresh) || logRefreshInFlight) return;
+            const viewer = document.getElementById('log-viewer');
+            const lineSelect = document.getElementById('log-lines');
+            const lines = lineSelect ? lineSelect.value : '200';
+            logRefreshInFlight = true;
+            setLogStatus('刷新中', '--', '--');
+            try {
+                const res = await fetch('/api/logs?lines=' + encodeURIComponent(lines) + '&t=' + Date.now());
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const entries = splitLogEntries(data.logs || '');
+                const alertCount = entries.filter(entry => /\[ERROR\]|\[WARNING\]|Traceback|Exception|Error|Timeout|超时|异常|失败|failed|422|500/.test(entry)).length;
+                renderLogEntries(entries);
+                setLogStatus(new Date().toLocaleTimeString(), entries.length + ' 条', alertCount);
             } catch (e) {
-                document.getElementById('log-viewer').textContent = '加载失败: ' + e.message;
+                if (viewer) {
+                    viewer.textContent = '';
+                    const error = document.createElement('div');
+                    error.className = 'log-entry log-entry--error';
+                    error.textContent = '加载失败: ' + e.message;
+                    viewer.appendChild(error);
+                }
+                setLogStatus('加载失败', '--', 1);
+            } finally {
+                logRefreshInFlight = false;
             }
         }
 
@@ -1958,23 +2598,27 @@
         function clearLogViewer() {
             const viewer = document.getElementById('log-viewer');
             viewer.textContent = '';
-            const span = document.createElement('span');
-            span.style.color = '#64748b';
-            span.textContent = '日志已清空，点击「刷新」重新加载';
-            viewer.appendChild(span);
+            const empty = document.createElement('div');
+            empty.className = 'log-empty';
+            empty.textContent = '日志已清空，点击「刷新」重新加载';
+            viewer.appendChild(empty);
+            setLogStatus('已清空显示', '0 条', 0);
         }
 
-        function toggleLogCard() {
-            const content = document.getElementById('log-content');
-            const btn = content.previousElementSibling;
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                btn.textContent = '隐藏日志 ▴';
-                refreshLogs();
-            } else {
-                content.style.display = 'none';
-                btn.textContent = '显示日志 ▾';
+        function toggleLogAutoRefresh() {
+            logAutoRefresh = !logAutoRefresh;
+            const btn = document.getElementById('log-pause-btn');
+            if (btn) {
+                btn.innerHTML = logAutoRefresh
+                    ? '<i class="icon-sm" data-lucide="pause"></i> 暂停'
+                    : '<i class="icon-sm" data-lucide="play"></i> 继续';
+                if (window.lucide) lucide.createIcons();
             }
+            const currentLineCount = document.getElementById('log-line-count')?.textContent || '--';
+            const currentAlertText = document.getElementById('log-alert-count')?.textContent || '0';
+            const currentAlertCount = Number.isFinite(Number(currentAlertText)) ? Number(currentAlertText) : 0;
+            setLogStatus(logAutoRefresh ? '自动刷新' : '已暂停', currentLineCount, currentAlertCount);
+            if (logAutoRefresh) refreshLogs(true);
         }
 
         // 定时刷新设备列表和日志
@@ -2008,6 +2652,7 @@
         }
 
         loadConfig();
+        loadLanAccess();
     </script>
 </body>
 </html>

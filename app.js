@@ -24,10 +24,14 @@ let isWsConnected = false;
 let wsReconnectAttempts = 0;
 const WS_MAX_RECONNECT = 10;
 const WS_BASE_DELAY = 1000;
+const OCR_RESPONSE_TIMEOUT_MS = 65000;
 
 // 每日扫描计数
 let dailyScanCount = 0;
+let totalScanCount = 0;
 let lastScanDate = '';
+let scanStatsPollTimer = null;
+const SCAN_STATS_POLL_MS = 2000;
 
 // 连接模式
 let networkInfo = null;
@@ -44,7 +48,10 @@ const matchedTargetEl = document.getElementById('matched-target');
 const debugEl = document.getElementById('debug');
 const toggleBtn = document.getElementById('toggle-btn');
 const scanRegionEl = document.querySelector('.scan-region');
-const scanCounterValEl = document.getElementById('scan-counter-val');
+const scanCounterTotalValEl = document.getElementById('scan-counter-total-val');
+const scanCounterLocalValEl = document.getElementById('scan-counter-local-val');
+const scanCountMinusBtn = document.getElementById('scan-count-minus');
+const scanCountPlusBtn = document.getElementById('scan-count-plus');
 
 // SVG 图标映射（替换 emoji，保证跨平台渲染一致）
 const ICONS = {
@@ -58,6 +65,7 @@ const ICONS = {
 // 初始化
 async function init() {
   log('🚀 开始初始化...');
+  initDailyCounter();
 
   // 检查安全上下文
   if (!window.isSecureContext) {
@@ -68,9 +76,9 @@ async function init() {
     log('✅ 安全上下文: 是');
   }
 
-  // 检查API支持
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    // log('❌ 错误: 浏览器不支持 mediaDevices API');
+  const hasCameraApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (!hasCameraApi) {
+    log('❌ 错误: 浏览器不支持 mediaDevices.getUserMedia');
   }
 
   try {
@@ -95,9 +103,17 @@ async function init() {
 
     // 非安全上下文（直接 IP 访问）= iOS Safari 会阻止摄像头
     const isSecure = window.isSecureContext;
+    if (!hasCameraApi) {
+      statusText.textContent = '当前浏览器无法调用摄像头';
+      matchedTargetEl.textContent = '请使用 Android Chrome；iPhone/Safari 需要通过管理台里的 Tailscale HTTPS 地址访问。';
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.6';
+      startBtn.style.cursor = 'not-allowed';
+    }
     if (!isSecure) {
       log('⚠️ 当前为非安全上下文，getUserMedia 可能被阻止');
-      statusText.textContent = '建议使用 Chrome 或通过 ADB 无线调试访问 localhost';
+      statusText.textContent = 'HTTP 访问可能被浏览器拦截摄像头';
+      matchedTargetEl.textContent = 'Android Chrome 可在 flags 中信任当前地址；iPhone/Safari 必须使用 Tailscale HTTPS。';
     }
 
     // 检查是否带有 autostart 参数（从管理面板远程启动）
@@ -130,10 +146,9 @@ async function init() {
         if (!isSecure && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError' || e.message.includes('secure context'))) {
           updateStatus(STATE.NOT_MATCHED, '❌', '启动失败：安全上下文限制',
             '当前浏览器限制了非 localhost 的摄像头权限。\n\n' +
-            '解决方案（按推荐顺序）：\n' +
-            '1. Android Chrome: 地址栏输入 chrome://flags/#unsafely-treat-insecure-origin-as-secure，填入当前IP并重启\n' +
-            '2. 使用 USB + ADB 无线调试访问 localhost:8080\n' +
-            '3. 配置 HTTPS 证书');
+            'Android Chrome: 打开 chrome://flags/#unsafely-treat-insecure-origin-as-secure，填入 ' + window.location.origin + ' 并重启 Chrome。\n\n' +
+            'iPhone/Safari: 必须使用管理台里的 Tailscale HTTPS 地址。\n\n' +
+            'USB/ADB: 可继续使用 localhost:8080。');
         } else {
           updateStatus(STATE.NOT_MATCHED, '❌', '启动失败', e.message);
         }
@@ -414,11 +429,6 @@ function initWebSocket() {
         const result = JSON.parse(event.data);
         const text = result.text || '';
 
-        // 方案A：只要去除空格后的文字超过6个字，即记作一次扫描
-        if (text.replace(/\s/g, '').length > 6) {
-          incrementDailyCount();
-        }
-
         if (result.status === 'error') {
           updateStatus(STATE.NOT_MATCHED, '❌', '识别错误', text.substring(0, 100));
           log('❌ WS Error: ' + text);
@@ -428,6 +438,10 @@ function initWebSocket() {
         if (text.trim().length === 0 && result.status === 'processing') {
           updateStatus(STATE.SCANNING, '⏳', t('app.scanning', 'Scanning...'));
           return;
+        }
+
+        if (result.status === 'success' && result.scan_count !== null && result.scan_count !== undefined) {
+          incrementDailyCount(result.scan_count);
         }
 
         const matchRes = matchTarget(text);
@@ -625,7 +639,7 @@ async function scanFrame() {
 
     // 日志记录帧大小，方便调试时确认是否还有空白帧
     const frameSizeKB = Math.round(imageDataUrl.length / 1024);
-    if (frameSizeKB < 8) {
+    if (frameSizeKB < 2) {
       log('⚠️ 帧大小异常: ' + frameSizeKB + 'KB，可能为空白帧，跳过发送');
       isProcessing = false;
       return;
@@ -636,14 +650,14 @@ async function scanFrame() {
     ws.send(imageDataUrl);
     // 清除旧的超时计时器，防止多个 timer 竞争
     if (processingTimeout) { clearTimeout(processingTimeout); processingTimeout = null; }
-    // 超时保护：15秒无响应自动解锁
+    // 超时保护：略长于服务端 OCR 超时，避免 GLM-OCR 慢响应时重复发帧压垮模型
     processingTimeout = setTimeout(() => {
       if (isProcessing) {
         isProcessing = false;
-        log('⚠️ OCR 响应超时 (15s)，已自动重置');
+        log('⚠️ OCR 响应超时，已自动重置');
         updateStatus(STATE.SCANNING, '⏳', '正在扫描...');
       }
-    }, 15000);
+    }, OCR_RESPONSE_TIMEOUT_MS);
   } catch (err) {
     log('⚠️ 帧捕获/发送失败: ' + err.message);
     isProcessing = false;
@@ -1034,6 +1048,7 @@ document.addEventListener('visibilitychange', () => {
       log('⏸️ 页面进入后台，扫描已暂停');
     }
   } else {
+    refreshDailyTotalCount();
     if (isScanning && !scanInterval && isWsConnected) {
       startScanning();
       log('▶️ 页面回到前台，扫描已恢复');
@@ -1253,44 +1268,108 @@ function getTodayDateStr() {
 }
 
 function initDailyCounter() {
-  const today = getTodayDateStr();
-  const storedDate = localStorage.getItem('scanDate');
-  if (storedDate === today) {
-    dailyScanCount = parseInt(localStorage.getItem('scanCount') || '0', 10);
-  } else {
-    dailyScanCount = 0;
-    localStorage.setItem('scanDate', today);
-    localStorage.setItem('scanCount', 0);
-  }
+  syncLocalCounterDate();
   updateDailyCounterUI();
+  refreshDailyTotalCount();
+  if (!scanStatsPollTimer) {
+    scanStatsPollTimer = setInterval(refreshDailyTotalCount, SCAN_STATS_POLL_MS);
+  }
 }
 
-function incrementDailyCount() {
-  const today = getTodayDateStr();
+function syncLocalCounterDate(dateStr) {
+  const today = dateStr || getTodayDateStr();
   const storedDate = localStorage.getItem('scanDate');
-  
   if (storedDate !== today) {
-    dailyScanCount = 1;
+    dailyScanCount = 0;
     localStorage.setItem('scanDate', today);
-  } else {
-    dailyScanCount++;
+    localStorage.setItem('scanCount', '0');
+    lastScanDate = today;
+    return;
   }
-  localStorage.setItem('scanCount', dailyScanCount);
+  dailyScanCount = Math.max(0, parseInt(localStorage.getItem('scanCount') || '0', 10) || 0);
+  lastScanDate = today;
+}
+
+function saveLocalScanCount() {
+  const today = lastScanDate || getTodayDateStr();
+  localStorage.setItem('scanDate', today);
+  localStorage.setItem('scanCount', String(Math.max(0, dailyScanCount)));
+  lastScanDate = today;
+}
+
+function setTotalScanCount(count) {
+  const parsed = parseInt(count, 10);
+  if (Number.isFinite(parsed)) {
+    totalScanCount = Math.max(0, parsed);
+  }
+}
+
+async function refreshDailyTotalCount() {
+  try {
+    const res = await fetch('/api/scan-stats?t=' + Date.now());
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.date) syncLocalCounterDate(data.date);
+    setTotalScanCount(data.count);
+    updateDailyCounterUI();
+  } catch (e) {
+    log('⚠️ 扫描总数同步失败: ' + e.message);
+  }
+}
+
+function incrementDailyCount(serverCount) {
+  syncLocalCounterDate();
+  dailyScanCount++;
+  saveLocalScanCount();
+  setTotalScanCount(serverCount);
   updateDailyCounterUI();
+  if (serverCount === null || serverCount === undefined) refreshDailyTotalCount();
 }
 
 function resetDailyCount() {
   if (confirm(t('app.confirm_reset_count', '确定要重置今日的扫描计数吗？'))) {
     dailyScanCount = 0;
-    const today = getTodayDateStr();
-    localStorage.setItem('scanDate', today);
-    localStorage.setItem('scanCount', 0);
+    saveLocalScanCount();
     updateDailyCounterUI();
   }
 }
 
-function updateDailyCounterUI() {
-  if (scanCounterValEl) {
-    scanCounterValEl.textContent = dailyScanCount;
+async function adjustDailyCount(delta) {
+  delta = Number(delta);
+  if (delta !== 1 && delta !== -1) return;
+
+  syncLocalCounterDate();
+  const prevLocal = dailyScanCount;
+  const prevTotal = totalScanCount;
+
+  dailyScanCount = Math.max(0, dailyScanCount + delta);
+  totalScanCount = Math.max(0, totalScanCount + delta);
+  saveLocalScanCount();
+  updateDailyCounterUI(true);
+
+  try {
+    const res = await fetch('/api/scan-stats/adjust', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delta })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'adjust failed');
+    if (data.date) syncLocalCounterDate(data.date);
+    setTotalScanCount(data.count);
+    updateDailyCounterUI();
+  } catch (e) {
+    dailyScanCount = prevLocal;
+    totalScanCount = prevTotal;
+    saveLocalScanCount();
+    updateDailyCounterUI();
+    log('⚠️ 手动调整扫描次数失败: ' + e.message);
   }
+}
+
+function updateDailyCounterUI() {
+  if (scanCounterTotalValEl) scanCounterTotalValEl.textContent = totalScanCount;
+  if (scanCounterLocalValEl) scanCounterLocalValEl.textContent = dailyScanCount;
+  if (scanCountMinusBtn) scanCountMinusBtn.disabled = totalScanCount <= 0 && dailyScanCount <= 0;
+  if (scanCountPlusBtn) scanCountPlusBtn.disabled = false;
 }

@@ -82,6 +82,18 @@ def test_scan_stats():
         except OSError:
             mtime = 0.0
 
+    def coerce_count(value):
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return 0
+
+    def adjust(day, delta):
+        stats = load()
+        stats[day] = max(0, coerce_count(stats.get(day, 0)) + delta)
+        save(stats)
+        return stats[day]
+
     # 1a: write-then-read immediate consistency
     save({"2026-05-25": 2310, "2026-05-26": 638})
     d = load()
@@ -105,6 +117,15 @@ def test_scan_stats():
         d3 == {"2026-05-25": 2311, "2026-05-26": 0},
         f"got {d3}" if d3.get("2026-05-25") != 2311 else "",
     )
+
+    # 1d: manual adjustment clamps at zero
+    down = adjust("2026-05-26", -1)
+    _result("adjust decrement clamps at zero", down == 0, f"got {down}")
+
+    # 1e: invalid stored counts are treated as zero before increment
+    save({"2026-05-27": "bad"})
+    up = adjust("2026-05-27", 1)
+    _result("adjust increment coerces invalid count", up == 1, f"got {up}")
 
     # cleanup
     os.unlink(stats_file)
@@ -220,6 +241,43 @@ async def test_paddle_fallback():
 
 
 # ───────────────────────────────────────
+# 4) Ollama OCR response cleanup
+# ───────────────────────────────────────
+
+def test_ollama_cleanup():
+    print("\n=== 4) Ollama OCR cleanup ===")
+
+    from ocr import clean_ollama_ocr_text
+
+    raw = "Test OCR 123\n\n```markdown\nTest OCR 123\n```\n---\n```\n"
+    cleaned = clean_ollama_ocr_text(raw)
+    _result(
+        "removes markdown loop noise",
+        cleaned == "Test OCR 123",
+        f"got: {cleaned!r}",
+    )
+
+    prompt_leak = (
+        "拖拽 Excel/CSV 到此处，或点击选择文件\n"
+        "你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。"
+    )
+    cleaned_leak = clean_ollama_ocr_text(prompt_leak)
+    _result(
+        "removes leaked OCR prompt",
+        cleaned_leak == "拖拽 Excel/CSV 到此处，或点击选择文件",
+        f"got: {cleaned_leak!r}",
+    )
+
+    short_prompt_leak = "全国统一服务电话111\nwww.ems.com.cn\n高精度的合同 OCR 助手\n图片中没有文字内容"
+    cleaned_short = clean_ollama_ocr_text(short_prompt_leak)
+    _result(
+        "removes short prompt fragments",
+        cleaned_short == "全国统一服务电话111\nwww.ems.com.cn",
+        f"got: {cleaned_short!r}",
+    )
+
+
+# ───────────────────────────────────────
 
 def main():
     print("smoke_regression.py — contract_scanner_ai")
@@ -230,6 +288,7 @@ def main():
     # Async tests
     asyncio.run(test_ocr_runtime_lifecycle())
     asyncio.run(test_paddle_fallback())
+    test_ollama_cleanup()
 
     # Summary
     total = passed + failed

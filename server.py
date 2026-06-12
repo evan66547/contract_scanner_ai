@@ -106,7 +106,13 @@ async def warmup_model():
 
         logger.info(f"⏳ 正在预热模型 {model}...")
         url = f"{base_url.rstrip('/')}/api/generate"
-        payload = {"model": model, "prompt": "hi", "stream": False, "keep_alive": ollama_cfg.get("keepAlive", "10m")}
+        payload = {
+            "model": model,
+            "prompt": "hi",
+            "stream": False,
+            "keep_alive": ollama_cfg.get("keepAlive", "10m"),
+            "options": {"num_predict": 1, "temperature": 0},
+        }
         async with http_session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as resp:
             if resp.status == 200:
                 logger.info(f"✅ 模型 {model} 预热完成，已加载到内存")
@@ -413,6 +419,12 @@ def _save_scan_stats(stats: dict):
     except OSError:
         _scan_stats_mtime = 0.0
 
+def _coerce_scan_count(value) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
 def _is_error_text(text: str) -> bool:
     """判断 OCR 结果是否为错误/超时字符串"""
     if not text:
@@ -421,25 +433,27 @@ def _is_error_text(text: str) -> bool:
         return True
     return False
 
-async def _maybe_count_scan(text: str):
+async def _maybe_count_scan(text: str) -> Optional[int]:
     """OCR 结果满足条件时计数 +1：去空白后长度 > 6 且非错误字符串"""
     if _is_error_text(text):
-        return
+        return None
     cleaned = text.replace("\n", "").replace("\r", "").replace(" ", "")
     if len(cleaned) > 6:
         async with _scan_stats_lock:
             global _scan_stats_cache
             today = _today_str()
             stats = _load_scan_stats()
-            stats[today] = stats.get(today, 0) + 1
+            stats[today] = _coerce_scan_count(stats.get(today, 0)) + 1
             _save_scan_stats(stats)
             _scan_stats_cache = stats
+            return stats[today]
+    return None
 
 @app.get("/api/scan-stats")
 async def get_scan_stats():
     today = _today_str()
     stats = _load_scan_stats()
-    return {"date": today, "count": stats.get(today, 0)}
+    return {"date": today, "count": _coerce_scan_count(stats.get(today, 0))}
 
 @app.get("/api/scan-stats/month")
 async def get_scan_stats_month(month: str = ""):
@@ -458,7 +472,7 @@ async def get_scan_stats_month(month: str = ""):
     days = {}
     for d in range(1, last_day + 1):
         key = f"{month}-{d:02d}"
-        days[key] = stats.get(key, 0)
+        days[key] = _coerce_scan_count(stats.get(key, 0))
     return {"month": month, "days": days}
 
 @app.post("/api/scan-stats/reset")
@@ -472,6 +486,27 @@ async def reset_scan_stats(request: Request):
         _save_scan_stats(stats)
         _scan_stats_cache = stats
     return {"success": True, "date": target_date, "count": 0}
+
+@app.post("/api/scan-stats/adjust")
+async def adjust_scan_stats(request: Request):
+    data = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    target_date = data.get("date") or _today_str()
+    delta = data.get("delta")
+    try:
+        delta = int(delta)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "delta must be 1 or -1"}, status_code=400)
+    if delta not in (-1, 1):
+        return JSONResponse({"error": "delta must be 1 or -1"}, status_code=400)
+
+    async with _scan_stats_lock:
+        global _scan_stats_cache
+        stats = _load_scan_stats()
+        next_count = max(0, _coerce_scan_count(stats.get(target_date, 0)) + delta)
+        stats[target_date] = next_count
+        _save_scan_stats(stats)
+        _scan_stats_cache = stats
+    return {"success": True, "date": target_date, "count": next_count}
 
 def _redact_config(cfg: dict) -> dict:
     """返回脱敏副本，密钥字段替换为占位符"""
@@ -843,8 +878,8 @@ async def rest_ocr(request: Request):
             text = await asyncio.wait_for(dispatch_ocr(image_data), timeout=60)
         except asyncio.TimeoutError:
             text = "[Timeout: OCR 引擎响应超时，请重试]"
-    await _maybe_count_scan(text)
-    return {"text": text}
+    scan_count = await _maybe_count_scan(text)
+    return {"text": text, "scan_count": scan_count}
 
 # ================================
 # WebSocket 流式引擎（带并发控制）
@@ -885,9 +920,8 @@ async def websocket_ocr(websocket: WebSocket):
                 await websocket.send_json({"status": "error", "text": "图片过大"})
                 continue
 
-            # === 关键修复：检测异常小的帧（canvas尺寸为0时产生的空白帧特征）===
-            # 正常扫描帧通常在 20KB-100KB+，空白帧约 ~4KB
-            if len(b64_str) < 5000:
+            # 检测明显异常的小帧。窄 ROI 的有效图片可能只有几 KB，阈值不能过高。
+            if len(b64_str) < 1200:
                 consecutive_empty_frames += 1
                 if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} suspiciously small ({len(b64_str)} bytes), empty streak: {consecutive_empty_frames}")
                 if consecutive_empty_frames >= 15:
@@ -946,11 +980,12 @@ async def websocket_ocr(websocket: WebSocket):
             else:
                 consecutive_empty_frames = 0
 
-            await _maybe_count_scan(ocr_text)
+            scan_count = await _maybe_count_scan(ocr_text)
             if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} sending 'success'")
             await websocket.send_json({
                 "status": "success",
-                "text": ocr_text
+                "text": ocr_text,
+                "scan_count": scan_count
             })
 
     except WebSocketDisconnect:
@@ -969,13 +1004,23 @@ async def health_check():
     """检查服务及 Ollama 是否在线"""
     ollama_ok = False
     ollama_model = None
+    ollama_loaded = False
     try:
-        async with http_session.get("http://localhost:11434/api/tags", timeout=aiohttp.ClientTimeout(total=3)) as resp:
+        cfg = get_ocr_config()
+        ollama_cfg = cfg.get("ocr", {}).get("ollama", {})
+        base_url = ollama_cfg.get("baseUrl", "http://localhost:11434").rstrip("/")
+        target_model = ollama_cfg.get("model", "glm-ocr")
+        ollama_model = target_model
+        async with http_session.get(f"{base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=3)) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 models = [m.get("name", "") for m in data.get("models", [])]
                 ollama_ok = len(models) > 0
-                ollama_model = models[0] if models else None
+        async with http_session.get(f"{base_url}/api/ps", timeout=aiohttp.ClientTimeout(total=3)) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                loaded = [m.get("name", "") for m in data.get("models", [])]
+                ollama_loaded = any(target_model in n for n in loaded)
     except Exception:
         pass
 
@@ -983,7 +1028,8 @@ async def health_check():
         "status": "ok",
         "ollama": {
             "online": ollama_ok,
-            "model": ollama_model
+            "model": ollama_model,
+            "loaded": ollama_loaded
         },
         "active_ws": len(active_ws_clients),
         "max_ws": MAX_WS_CONNECTIONS
@@ -1551,7 +1597,13 @@ async def _do_model_load(base_url: str, model: str, keep_alive: str):
     timeout = aiohttp.ClientTimeout(total=120, sock_read=30, connect=10)
     try:
         url = f"{base_url.rstrip('/')}/api/generate"
-        payload = {"model": model, "prompt": "hi", "stream": False, "keep_alive": keep_alive}
+        payload = {
+            "model": model,
+            "prompt": "hi",
+            "stream": False,
+            "keep_alive": keep_alive,
+            "options": {"num_predict": 1, "temperature": 0},
+        }
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, json=payload, timeout=timeout) as resp:
                 if resp.status == 200:

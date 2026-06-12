@@ -10,6 +10,7 @@ import concurrent.futures
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +19,43 @@ from typing import Any, Optional
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+_OLLAMA_PROMPT_LEAK_MARKERS = (
+    "你是一个高精度的合同 OCR 助手",
+    "你是一个高精度的合同OCR助手",
+    "高精度的合同 OCR 助手",
+    "高精度的合同OCR助手",
+    "请提取图片中的所有文字",
+    "图片中没有文字内容",
+    "如果是复印件，请忽略背景噪点",
+    "请确保公司名称、日期等关键信息准确",
+    "直接输出识别到的文字内容",
+    "不要包含任何解释、说明或 Markdown 格式",
+)
+
+
+def clean_ollama_ocr_text(text: str) -> str:
+    """Remove common GLM-OCR formatting loops while preserving OCR text lines."""
+    cleaned = []
+    previous = None
+    for raw_line in str(text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("```"):
+            continue
+        if re.fullmatch(r"[-*_`=\s]{3,}", line):
+            continue
+        leak_positions = [line.find(marker) for marker in _OLLAMA_PROMPT_LEAK_MARKERS if marker in line]
+        if leak_positions:
+            line = line[:min(leak_positions)].strip()
+            if not line:
+                continue
+        if line == previous:
+            continue
+        cleaned.append(line)
+        previous = line
+    return "\n".join(cleaned).strip()
 
 
 # ═══════════════════════════════════════════════
@@ -363,18 +401,24 @@ class OcrRuntime:
         base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
         model = ollama_cfg.get("model", "glm-ocr")
         keep_alive = ollama_cfg.get("keepAlive", "10m")
+        num_predict = int(ollama_cfg.get("numPredict", 160))
+        timeout_seconds = int(ollama_cfg.get("timeoutSeconds", 60))
 
         url = f"{base_url.rstrip('/')}/api/generate"
         payload = {
             "model": model,
             "prompt": "你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。请确保公司名称、日期等关键信息准确。直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式：",
             "images": [image_b64],
-            "stream": True,
-            "keep_alive": keep_alive
+            "stream": False,
+            "keep_alive": keep_alive,
+            "options": {
+                "num_predict": num_predict,
+                "temperature": 0,
+            },
         }
 
         # 使用独立 session，避免 Ollama 死连接污染全局连接池
-        ocr_timeout = aiohttp.ClientTimeout(total=120, sock_read=30, connect=10)
+        ocr_timeout = aiohttp.ClientTimeout(total=timeout_seconds, sock_read=timeout_seconds, connect=10)
         async with aiohttp.ClientSession(timeout=ocr_timeout) as session:
             try:
                 async with session.get(
@@ -392,20 +436,8 @@ class OcrRuntime:
                     async with session.post(url, json=payload, timeout=ocr_timeout) as resp:
                         if resp.status != 200:
                             return f"[Ollama Error: {resp.status}]"
-
-                        parts = []
-                        async for line in resp.content:
-                            line = line.strip()
-                            if not line:
-                                continue
-                            try:
-                                chunk = json.loads(line)
-                            except json.JSONDecodeError:
-                                continue
-                            parts.append(chunk.get("response", ""))
-                            if chunk.get("done"):
-                                break
-                        return "".join(parts)
+                        data = await resp.json()
+                        return clean_ollama_ocr_text(data.get("response", ""))
 
                 except asyncio.TimeoutError:
                     if attempt < max_retries:

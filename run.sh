@@ -43,8 +43,26 @@ fi
 # 6. Start the Server
 echo "------------------------------------------"
 PORT=${PORT:-8080}
+LAN_IP=""
+if command -v ipconfig >/dev/null 2>&1; then
+    LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || true)
+fi
+if [ -z "$LAN_IP" ] && [ -x /usr/sbin/ipconfig ]; then
+    LAN_IP=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || true)
+fi
+if [ -z "$LAN_IP" ] && command -v hostname >/dev/null 2>&1; then
+    LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+fi
+if [ -z "$LAN_IP" ] && command -v ifconfig >/dev/null 2>&1; then
+    LAN_IP=$(ifconfig 2>/dev/null | awk '/inet / && $2 !~ /^127\\./ && $2 ~ /^(192\\.168\\.|10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.)/ {print $2; exit}')
+fi
 echo "🌐 PC Dashboard: http://localhost:${PORT}/admin.html"
-echo "📱 Mobile Scanner: http://localhost:${PORT}"
+if [ -n "$LAN_IP" ]; then
+    echo "📱 Same Wi-Fi Scanner: http://${LAN_IP}:${PORT}"
+else
+    echo "📱 Same Wi-Fi Scanner: open Admin Panel to view LAN address"
+fi
+echo "📱 USB/ADB Scanner: http://localhost:${PORT}"
 echo "   (Use ADB reverse to access via USB: adb reverse tcp:${PORT} tcp:${PORT})"
 # iOS scanning requires Tailscale HTTPS tunnel (see admin panel for setup)
 echo "------------------------------------------"

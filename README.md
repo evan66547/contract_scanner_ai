@@ -51,10 +51,16 @@ cd contract_scanner_ai
 - **Windows**: Double-click `deploy.bat` (recommended, auto-downloads ADB if missing) or `run.bat` (lightweight)
 *(The script automatically configures the venv, installs dependencies, and launches the FastAPI server).*
 
+**Runtime Check**
+```bash
+make live-check
+```
+This verifies local GLM-OCR, PaddleOCR, and the same-Wi-Fi scanner URL before testing on a phone.
+
 **3. Usage**
 - Open **Admin Panel** on PC: `http://localhost:8080/admin.html`
 - **Open Scanner on Mobile (Two Ways):**
-  - **Wireless Connection:** Connect your phone to the same Wi-Fi network as your PC and access the server's local IP (e.g., `http://192.168.1.x:8080`).
+  - **Wireless Connection:** Connect your phone to the same Wi-Fi network as your PC and use the `Same Wi-Fi Scanner` URL printed by `bash run.sh`, or scan the QR code in the Admin Panel.
   - **Wired (USB) Connection:** Connect via USB and click "Open on Phone" in the admin panel to auto-launch via ADB.
   - **iOS (iPhone/iPad) via Tailscale:**
     1. Install [Tailscale](https://tailscale.com/download) on both Mac and iPhone, log in with the same account
@@ -107,10 +113,16 @@ cd contract_scanner_ai
 - **Windows 用户**: 直接双击 `deploy.bat`（推荐，自动检测并下载 ADB）或 `run.bat`（轻量版）
 *(启动脚本会自动创建 `.venv` 虚拟环境、拉取包依赖并挂起 FastAPI 守护进程)*
 
+**运行前验收**
+```bash
+make live-check
+```
+该命令会验证本机 GLM-OCR、PaddleOCR、以及同 Wi-Fi 手机访问地址是否可用。
+
 **3. 如何使用**
 - 在电脑端打开**管理台**: `http://localhost:8080/admin.html`，可拖入 Excel 导入你的目标名单。
 - **在手机端打开扫描器 (两种方式)**: 
-  - **无线连接 (推荐)**: 确保手机和电脑连接在同一局域网 (Wi-Fi)，使用手机浏览器直接访问电脑的局域网 IP (例如 `http://192.168.1.x:8080`) 即可随时随地无线扫描。
+  - **无线连接 (推荐)**: 确保手机和电脑连接在同一局域网 (Wi-Fi)，使用 `bash run.sh` 打印的 `Same Wi-Fi Scanner` 地址，或在管理台扫描二维码打开。
   - **有线连接 (ADB)**: 在安卓手机插线后，直接点击管理台中右上角的“在手机上打开”按钮。
   - **iOS (iPhone/iPad) 通过 Tailscale**: 
     1. Mac 与 iPhone 安装 [Tailscale](https://tailscale.com/download) 并登录**同一账号**
