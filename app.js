@@ -32,6 +32,8 @@ let totalScanCount = 0;
 let lastScanDate = '';
 let scanStatsPollTimer = null;
 const SCAN_STATS_POLL_MS = 2000;
+const DEVICE_ID_KEY = 'scannerDeviceId';
+const DEVICE_LABEL_KEY = 'scannerDeviceLabel';
 
 // 连接模式
 let networkInfo = null;
@@ -173,6 +175,38 @@ async function init() {
       updateStatus(STATE.NOT_MATCHED, '❌', '系统错误', error.message);
     }
   }
+}
+
+function createDeviceId() {
+  const randomPart = Math.random().toString(36).slice(2, 10);
+  const timePart = Date.now().toString(36);
+  return 'dev-' + timePart + '-' + randomPart;
+}
+
+function detectDeviceLabel() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/iPad/i.test(ua)) return 'iPad';
+  const androidModel = ua.match(/Android[^;]*;\s*([^;)]+)[;) ]/i);
+  if (androidModel && androidModel[1]) {
+    return androidModel[1].replace(/\s+Build\/.*/, '').trim().slice(0, 32) || 'Android 手机';
+  }
+  if (/Android/i.test(ua)) return 'Android 手机';
+  return navigator.platform || '手机设备';
+}
+
+function getScannerDeviceInfo() {
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId = createDeviceId();
+    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  let label = localStorage.getItem(DEVICE_LABEL_KEY);
+  if (!label) {
+    label = detectDeviceLabel();
+    localStorage.setItem(DEVICE_LABEL_KEY, label);
+  }
+  return { deviceId, label };
 }
 
 // 加载配置
@@ -399,7 +433,12 @@ function waitForVideoDimensions(videoEl, timeoutMs) {
 function initWebSocket() {
   return new Promise((resolve, reject) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${window.location.host}/ws/ocr`);
+    const deviceInfo = getScannerDeviceInfo();
+    const qs = new URLSearchParams({
+      device_id: deviceInfo.deviceId,
+      device_label: deviceInfo.label
+    });
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws/ocr?${qs.toString()}`);
 
     const connectTimeout = setTimeout(() => {
       ws.close();
@@ -1178,7 +1217,7 @@ async function checkAdbStatus() {
         updateAdbSteps();
       }
     } else {
-      statusEl.textContent = '未检测到 ADB 设备，请用 USB 连接手机';
+      statusEl.textContent = data.message || '未检测到 ADB 设备，请用 USB 连接手机';
       adbStepStates = [1, 0, 0, 0, 0];
       updateAdbSteps();
     }
@@ -1348,10 +1387,15 @@ async function adjustDailyCount(delta) {
   updateDailyCounterUI(true);
 
   try {
+    const deviceInfo = getScannerDeviceInfo();
     const res = await fetch('/api/scan-stats/adjust', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ delta })
+      body: JSON.stringify({
+        delta,
+        device_id: deviceInfo.deviceId,
+        device_label: deviceInfo.label
+      })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'adjust failed');

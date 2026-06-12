@@ -12,6 +12,7 @@ from io import BytesIO, StringIO
 import csv
 import socket
 import subprocess
+import re
 
 import multiprocessing
 from ocr import OcrRuntime
@@ -151,6 +152,88 @@ INFO_ALIASES = {'显示信息', '附加信息', '备注', '日期', '开单日�
 # ADB 无线调试：缓存手机 WiFi IP（开启 tcpip 时记录，拔线后仍可用）
 adb_wifi_ip_cache: Optional[str] = None
 INFO2_ALIASES = {'合同总额', '欠款金额', '金额', '总额', 'amount', 'total', 'balance', 'debt', '合同金额', '订单金额'}
+
+
+def _parse_adb_device_lines(output: str) -> list:
+    devices = []
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("List"):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        serial = parts[0]
+        adb_state = parts[1]
+        model = ""
+        for p in parts:
+            if p.startswith("model:"):
+                model = p.split(":", 1)[1]
+                break
+        is_network_serial = ":" in serial and not serial.startswith("emulator-")
+        is_usb = not is_network_serial
+        if "usb:" in line:
+            is_usb = True
+        elif "transport_id:" in line and not is_network_serial:
+            is_usb = True
+        devices.append({
+            "serial": serial,
+            "adb_state": adb_state,
+            "mode": "usb" if is_usb else "wifi",
+            "model": model,
+            "raw": line,
+        })
+    return devices
+
+
+def _get_usb_android_devices() -> list:
+    """Best-effort macOS USB detection for cases where USB sees Pixel but ADB does not."""
+    if os.uname().sysname != "Darwin":
+        return []
+    try:
+        r = subprocess.run(["ioreg", "-p", "IOUSB", "-l", "-w", "0"],
+                           capture_output=True, text=True, timeout=5)
+    except Exception:
+        return []
+    if r.returncode != 0:
+        return []
+
+    devices = []
+    blocks = re.split(r"\n\s*\+-o ", r.stdout)
+    for block in blocks:
+        if '"USB Vendor Name" = "Google"' not in block and '"kUSBVendorString" = "Google"' not in block:
+            continue
+        product_match = re.search(r'"USB Product Name" = "([^"]+)"', block)
+        if not product_match:
+            product_match = re.search(r'"kUSBProductString" = "([^"]+)"', block)
+        serial_match = re.search(r'"USB Serial Number" = "([^"]+)"', block)
+        if not serial_match:
+            serial_match = re.search(r'"kUSBSerialNumberString" = "([^"]+)"', block)
+        devices.append({
+            "product": product_match.group(1) if product_match else "Google Android device",
+            "serial": serial_match.group(1) if serial_match else "",
+        })
+    return devices
+
+
+def _adb_error_message_from_devices(devices: list) -> str:
+    if not devices:
+        usb_devices = _get_usb_android_devices()
+        if usb_devices:
+            names = ", ".join(
+                f"{d['product']} {d['serial']}".strip()
+                for d in usb_devices
+            )
+            return f"macOS 已识别 {names}，但 ADB 未识别。请在 Pixel 开发者选项中开启 USB 调试；若已开启，请撤销 USB 调试授权后重新插线并允许这台电脑。"
+        return "未检测到 Android 设备。请确认 Pixel 已插入、USB 线支持数据传输，并已开启 USB 调试。"
+    unauthorized = [d["serial"] for d in devices if d["adb_state"] == "unauthorized"]
+    if unauthorized:
+        return "Pixel 未授权 USB 调试。请解锁手机，在弹窗中允许这台电脑调试，然后重试。"
+    offline = [d["serial"] for d in devices if d["adb_state"] == "offline"]
+    if offline:
+        return "Pixel ADB 状态为 offline。请重新插拔 USB，必要时执行 adb kill-server 后重试。"
+    statuses = ", ".join(f"{d['serial']}={d['adb_state']}" for d in devices)
+    return f"未检测到可用 Android 设备: {statuses}"
 
 # Pydantic models
 class ExcelUploadResult(BaseModel):
@@ -425,6 +508,86 @@ def _coerce_scan_count(value) -> int:
     except (TypeError, ValueError):
         return 0
 
+def _is_date_key(value: str) -> bool:
+    import re
+    return isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is not None
+
+def _sanitize_device_id(value) -> str:
+    import re
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    return re.sub(r"[^A-Za-z0-9_.:-]+", "-", raw)[:80]
+
+def _sanitize_device_label(value, fallback: str = "") -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        raw = fallback or "未知设备"
+    return raw[:40]
+
+def _normalize_scan_stats(stats: dict) -> dict:
+    if not isinstance(stats, dict):
+        stats = {}
+    global_stats = stats.get("global") if isinstance(stats.get("global"), dict) else {}
+    for key, value in list(stats.items()):
+        if _is_date_key(key) and key not in global_stats:
+            global_stats[key] = value
+    devices = stats.get("devices") if isinstance(stats.get("devices"), dict) else {}
+    device_meta = stats.get("deviceMeta") if isinstance(stats.get("deviceMeta"), dict) else {}
+    stats["schema"] = "v2"
+    stats["global"] = global_stats
+    stats["devices"] = devices
+    stats["deviceMeta"] = device_meta
+    return stats
+
+def _get_global_scan_count(stats: dict, target_date: str) -> int:
+    stats = _normalize_scan_stats(stats)
+    return _coerce_scan_count(stats["global"].get(target_date, stats.get(target_date, 0)))
+
+def _set_global_scan_count(stats: dict, target_date: str, count: int):
+    count = _coerce_scan_count(count)
+    stats = _normalize_scan_stats(stats)
+    stats["global"][target_date] = count
+    # Keep legacy top-level date mirror so older local scripts still read totals.
+    stats[target_date] = count
+
+def _get_device_scan_count(stats: dict, device_id: str, target_date: str) -> int:
+    stats = _normalize_scan_stats(stats)
+    device_stats = stats["devices"].get(device_id)
+    if not isinstance(device_stats, dict):
+        return 0
+    return _coerce_scan_count(device_stats.get(target_date, 0))
+
+def _set_device_scan_count(stats: dict, device_id: str, target_date: str, count: int, label: str = ""):
+    device_id = _sanitize_device_id(device_id)
+    if not device_id:
+        return
+    stats = _normalize_scan_stats(stats)
+    device_stats = stats["devices"].setdefault(device_id, {})
+    device_stats[target_date] = _coerce_scan_count(count)
+    meta = stats["deviceMeta"].setdefault(device_id, {})
+    if label:
+        meta["label"] = _sanitize_device_label(label, device_id)
+    meta["lastSeen"] = target_date
+
+def _device_scan_rows(stats: dict, target_date: str) -> list:
+    stats = _normalize_scan_stats(stats)
+    rows = []
+    for device_id, device_stats in stats["devices"].items():
+        if not isinstance(device_stats, dict):
+            continue
+        count = _coerce_scan_count(device_stats.get(target_date, 0))
+        meta = stats["deviceMeta"].get(device_id, {}) if isinstance(stats["deviceMeta"].get(device_id), dict) else {}
+        label = _sanitize_device_label(meta.get("label"), device_id)
+        rows.append({
+            "device_id": device_id,
+            "label": label,
+            "count": count,
+            "lastSeen": meta.get("lastSeen", "")
+        })
+    rows.sort(key=lambda item: (-item["count"], item["label"]))
+    return rows
+
 def _is_error_text(text: str) -> bool:
     """判断 OCR 结果是否为错误/超时字符串"""
     if not text:
@@ -433,7 +596,7 @@ def _is_error_text(text: str) -> bool:
         return True
     return False
 
-async def _maybe_count_scan(text: str) -> Optional[int]:
+async def _maybe_count_scan(text: str, device_id: str = "", device_label: str = "") -> Optional[int]:
     """OCR 结果满足条件时计数 +1：去空白后长度 > 6 且非错误字符串"""
     if _is_error_text(text):
         return None
@@ -443,17 +606,26 @@ async def _maybe_count_scan(text: str) -> Optional[int]:
             global _scan_stats_cache
             today = _today_str()
             stats = _load_scan_stats()
-            stats[today] = _coerce_scan_count(stats.get(today, 0)) + 1
+            total = _get_global_scan_count(stats, today) + 1
+            _set_global_scan_count(stats, today, total)
+            clean_device_id = _sanitize_device_id(device_id)
+            if clean_device_id:
+                device_count = _get_device_scan_count(stats, clean_device_id, today) + 1
+                _set_device_scan_count(stats, clean_device_id, today, device_count, device_label)
             _save_scan_stats(stats)
             _scan_stats_cache = stats
-            return stats[today]
+            return total
     return None
 
 @app.get("/api/scan-stats")
 async def get_scan_stats():
     today = _today_str()
     stats = _load_scan_stats()
-    return {"date": today, "count": _coerce_scan_count(stats.get(today, 0))}
+    return {
+        "date": today,
+        "count": _get_global_scan_count(stats, today),
+        "devices": _device_scan_rows(stats, today)
+    }
 
 @app.get("/api/scan-stats/month")
 async def get_scan_stats_month(month: str = ""):
@@ -472,7 +644,7 @@ async def get_scan_stats_month(month: str = ""):
     days = {}
     for d in range(1, last_day + 1):
         key = f"{month}-{d:02d}"
-        days[key] = _coerce_scan_count(stats.get(key, 0))
+        days[key] = _get_global_scan_count(stats, key)
     return {"month": month, "days": days}
 
 @app.post("/api/scan-stats/reset")
@@ -482,15 +654,20 @@ async def reset_scan_stats(request: Request):
     async with _scan_stats_lock:
         global _scan_stats_cache
         stats = _load_scan_stats()
-        stats[target_date] = 0
+        _set_global_scan_count(stats, target_date, 0)
+        if isinstance(stats.get("devices"), dict):
+            for device_id in list(stats["devices"].keys()):
+                _set_device_scan_count(stats, device_id, target_date, 0)
         _save_scan_stats(stats)
         _scan_stats_cache = stats
-    return {"success": True, "date": target_date, "count": 0}
+    return {"success": True, "date": target_date, "count": 0, "devices": _device_scan_rows(stats, target_date)}
 
 @app.post("/api/scan-stats/adjust")
 async def adjust_scan_stats(request: Request):
     data = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
     target_date = data.get("date") or _today_str()
+    device_id = _sanitize_device_id(data.get("device_id") or data.get("deviceId"))
+    device_label = _sanitize_device_label(data.get("device_label") or data.get("deviceLabel"), device_id)
     delta = data.get("delta")
     try:
         delta = int(delta)
@@ -502,11 +679,14 @@ async def adjust_scan_stats(request: Request):
     async with _scan_stats_lock:
         global _scan_stats_cache
         stats = _load_scan_stats()
-        next_count = max(0, _coerce_scan_count(stats.get(target_date, 0)) + delta)
-        stats[target_date] = next_count
+        next_count = max(0, _get_global_scan_count(stats, target_date) + delta)
+        _set_global_scan_count(stats, target_date, next_count)
+        if device_id:
+            next_device_count = max(0, _get_device_scan_count(stats, device_id, target_date) + delta)
+            _set_device_scan_count(stats, device_id, target_date, next_device_count, device_label)
         _save_scan_stats(stats)
         _scan_stats_cache = stats
-    return {"success": True, "date": target_date, "count": next_count}
+    return {"success": True, "date": target_date, "count": next_count, "devices": _device_scan_rows(stats, target_date)}
 
 def _redact_config(cfg: dict) -> dict:
     """返回脱敏副本，密钥字段替换为占位符"""
@@ -813,8 +993,9 @@ async def open_on_phone():
     try:
         target_serial = _get_adb_target()
         if not target_serial:
+            r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
             return JSONResponse(
-                {"status": "error", "message": "未检测到已连接的 Android 设备"},
+                {"status": "error", "message": _adb_error_message_from_devices(_parse_adb_device_lines(r.stdout))},
                 status_code=500
             )
 
@@ -827,6 +1008,10 @@ async def open_on_phone():
 
         if rev_res.returncode != 0:
             logger.error(f"[adb] reverse failed on {target_serial}: {rev_res.stderr}")
+            return JSONResponse(
+                {"status": "error", "message": rev_res.stderr or rev_res.stdout or "ADB reverse 端口映射失败"},
+                status_code=500
+            )
         else:
             logger.info(f"[adb] reverse established on {target_serial} for port {SERVER_PORT}")
 
@@ -866,6 +1051,8 @@ async def open_on_phone():
 async def rest_ocr(request: Request):
     data = await request.json()
     image_data = data.get("image", "")
+    device_id = _sanitize_device_id(data.get("device_id") or data.get("deviceId"))
+    device_label = _sanitize_device_label(data.get("device_label") or data.get("deviceLabel"), device_id)
     if "," in image_data:
         image_data = image_data.split(",")[1]
 
@@ -878,7 +1065,7 @@ async def rest_ocr(request: Request):
             text = await asyncio.wait_for(dispatch_ocr(image_data), timeout=60)
         except asyncio.TimeoutError:
             text = "[Timeout: OCR 引擎响应超时，请重试]"
-    scan_count = await _maybe_count_scan(text)
+    scan_count = await _maybe_count_scan(text, device_id, device_label)
     return {"text": text, "scan_count": scan_count}
 
 # ================================
@@ -886,6 +1073,8 @@ async def rest_ocr(request: Request):
 # ================================
 @app.websocket("/ws/ocr")
 async def websocket_ocr(websocket: WebSocket):
+    device_id = _sanitize_device_id(websocket.query_params.get("device_id") or websocket.query_params.get("deviceId"))
+    device_label = _sanitize_device_label(websocket.query_params.get("device_label") or websocket.query_params.get("deviceLabel"), device_id)
     # 并发保护：超过上限时拒绝连接
     if len(active_ws_clients) >= MAX_WS_CONNECTIONS:
         await websocket.accept()
@@ -896,7 +1085,7 @@ async def websocket_ocr(websocket: WebSocket):
 
     await websocket.accept()
     active_ws_clients.add(websocket)
-    logger.info(f"[WS] Client connected ({len(active_ws_clients)}/{MAX_WS_CONNECTIONS})")
+    logger.info(f"[WS] Client connected ({len(active_ws_clients)}/{MAX_WS_CONNECTIONS}) device={device_label or device_id or 'unknown'}")
 
     consecutive_timeouts = 0
     consecutive_empty_frames = 0  # 连续空白/异常小帧计数
@@ -980,7 +1169,7 @@ async def websocket_ocr(websocket: WebSocket):
             else:
                 consecutive_empty_frames = 0
 
-            scan_count = await _maybe_count_scan(ocr_text)
+            scan_count = await _maybe_count_scan(ocr_text, device_id, device_label)
             if DEBUG_WS: logger.info(f"[WS] Frame #{frame_count} sending 'success'")
             await websocket.send_json({
                 "status": "success",
@@ -1040,19 +1229,13 @@ def _get_adb_target():
     r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
     usb_serial = None
     wifi_serial = None
-    for line in r.stdout.splitlines():
-        line = line.strip()
-        if not line or line.startswith("List"):
+    for device in _parse_adb_device_lines(r.stdout):
+        if device["adb_state"] != "device":
             continue
-        parts = line.split()
-        if len(parts) >= 2 and parts[1] == "device":
-            serial = parts[0]
-            if "usb:" in line:
-                usb_serial = serial
-            elif ":" in serial:
-                wifi_serial = serial
-            else:
-                wifi_serial = serial
+        if device["mode"] == "usb":
+            usb_serial = device["serial"]
+        else:
+            wifi_serial = device["serial"]
     return usb_serial or wifi_serial
 
 def _get_device_wifi_ip(adb_prefix: list) -> Optional[str]:
@@ -1111,44 +1294,37 @@ def _get_all_adb_devices() -> list:
     devices_dict = {}
     try:
         r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
-        for line in r.stdout.splitlines():
-            line = line.strip()
-            if not line or line.startswith("List"):
-                continue
-            parts = line.split()
-            if len(parts) >= 2 and parts[1] == "device":
-                serial = parts[0]
-                mode = "usb" if "usb:" in line else "wifi"
-                model = ""
-                for p in parts:
-                    if p.startswith("model:"):
-                        model = p.split(":", 1)[1]
-                        break
-                wifi_ip = None
-                adb_prefix = ["adb", "-s", serial]
+        for device in _parse_adb_device_lines(r.stdout):
+            serial = device["serial"]
+            mode = device["mode"]
+            model = device["model"]
+            wifi_ip = None
+            adb_prefix = ["adb", "-s", serial]
+            if device["adb_state"] == "device":
                 try:
                     wifi_ip = _get_device_wifi_ip(adb_prefix)
                 except Exception:
                     pass
-                
-                device_info = {
-                    "serial": serial,
-                    "mode": mode,
-                    "model": model,
-                    "wifi_ip": wifi_ip,
-                    "status": "connected"
-                }
 
-                # 更加严谨的去重：使用 (model, wifi_ip) 作为联合键
-                # 如果同一型号且 IP 相同，判定为同一台手机
-                key = (model, wifi_ip) if wifi_ip else (None, serial)
-                
-                if key in devices_dict:
-                    # 关键：优先保留物理 USB 连接，其端口转发最稳定
-                    if mode == "usb":
-                        devices_dict[key] = device_info
-                else:
+            device_info = {
+                "serial": serial,
+                "mode": mode,
+                "model": model,
+                "wifi_ip": wifi_ip,
+                "status": "connected" if device["adb_state"] == "device" else device["adb_state"],
+                "adb_state": device["adb_state"]
+            }
+
+            # 更加严谨的去重：使用 (model, wifi_ip) 作为联合键
+            # 如果同一型号且 IP 相同，判定为同一台手机
+            key = (model, wifi_ip) if wifi_ip else (None, serial)
+
+            if key in devices_dict:
+                # 关键：优先保留物理 USB 连接，其端口转发最稳定
+                if mode == "usb":
                     devices_dict[key] = device_info
+            else:
+                devices_dict[key] = device_info
                     
     except Exception as e:
         logger.error(f"[adb] enumerate failed: {e}")
@@ -1313,25 +1489,33 @@ async def qr_code(data: str):
 @app.get("/api/adb-wifi-status")
 async def adb_wifi_status():
     """检查 ADB 连接状态和手机 WiFi IP"""
-    result = {"connected": False, "usb_device": None, "wifi_ip": None, "mode": None}
+    result = {"connected": False, "usb_device": None, "wifi_ip": None, "mode": None, "devices": []}
     try:
         r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
         target_serial = None
-        for line in r.stdout.splitlines():
-            line = line.strip()
-            if not line or line.startswith("List"):
-                continue
-            parts = line.split()
-            if len(parts) >= 2 and parts[1] == "device":
-                serial = parts[0]
-                target_serial = serial
-                if "usb:" in line:
-                    result["usb_device"] = serial
-                    result["mode"] = "usb"
-                else:
-                    result["mode"] = "wifi"
-                result["connected"] = True
-                break
+        devices = _parse_adb_device_lines(r.stdout)
+        result["devices"] = [
+            {
+                "serial": d["serial"],
+                "mode": d["mode"],
+                "model": d["model"],
+                "adb_state": d["adb_state"],
+            }
+            for d in devices
+        ]
+        usable_devices = [d for d in devices if d["adb_state"] == "device"]
+        usb_devices = [d for d in usable_devices if d["mode"] == "usb"]
+        target_device = usb_devices[0] if usb_devices else (usable_devices[0] if usable_devices else None)
+        if target_device:
+            target_serial = target_device["serial"]
+            if target_device["mode"] == "usb":
+                result["usb_device"] = target_serial
+                result["mode"] = "usb"
+            else:
+                result["mode"] = "wifi"
+            result["connected"] = True
+        else:
+            result["message"] = _adb_error_message_from_devices(devices)
         if result["connected"] and target_serial:
             wifi_ip = _get_device_wifi_ip(["adb", "-s", target_serial])
             if wifi_ip:
@@ -1347,7 +1531,8 @@ async def adb_wifi_start():
     try:
         target = _get_adb_target()
         if not target:
-            return {"status": "error", "message": "未检测到已连接的 Android 设备"}
+            r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
+            return {"status": "error", "message": _adb_error_message_from_devices(_parse_adb_device_lines(r.stdout))}
         adb_prefix = ["adb", "-s", target]
         r = subprocess.run(adb_prefix + ["tcpip", "5555"], capture_output=True, text=True, timeout=10)
         if r.returncode == 0:
@@ -1411,15 +1596,16 @@ async def adb_wifi_connect(req: AdbWifiConnectReq):
 async def adb_devices_list():
     """列出所有已连接的 ADB 设备"""
     devices = _get_all_adb_devices()
-    return {"devices": devices, "count": len(devices)}
+    message = "" if devices else _adb_error_message_from_devices([])
+    return {"devices": devices, "count": len(devices), "message": message}
 
 @app.post("/api/adb-wifi-start-all")
 async def adb_wifi_start_all():
     """批量开启所有 USB 设备的 ADB 网络模式"""
     devices = _get_all_adb_devices()
-    usb_devices = [d for d in devices if d["mode"] == "usb"]
+    usb_devices = [d for d in devices if d["mode"] == "usb" and d.get("adb_state", "device") == "device"]
     if not usb_devices:
-        return {"status": "error", "message": "未检测到 USB 连接的设备"}
+        return {"status": "error", "message": "未检测到可用 USB 设备。若 Pixel 显示 unauthorized，请先在手机上允许 USB 调试。"}
 
     results = []
     for d in usb_devices:
@@ -1505,6 +1691,12 @@ async def open_on_phone_by_serial(serial: str):
         subprocess.run(adb_prefix + ["reverse", "--remove-all"], capture_output=True, timeout=2)
         rev_res = subprocess.run(adb_prefix + ["reverse", f"tcp:{SERVER_PORT}", f"tcp:{SERVER_PORT}"],
                        capture_output=True, text=True, timeout=5)
+        if rev_res.returncode != 0:
+            logger.error(f"[adb] reverse failed on {serial}: {rev_res.stderr}")
+            return JSONResponse(
+                {"status": "error", "message": rev_res.stderr or rev_res.stdout or "ADB reverse 端口映射失败"},
+                status_code=500
+            )
         
         target_url = f"http://localhost:{SERVER_PORT}?autostart=1"
         result = subprocess.run(

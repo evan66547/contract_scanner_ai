@@ -284,6 +284,10 @@
             text-align: center; margin-top: 15px; min-height: 24px;
             font-weight: 600; padding: 12px; border-radius: 8px;
             font-size: 14px; transition: all 0.3s ease;
+            position: sticky;
+            top: 12px;
+            z-index: 20;
+            white-space: pre-wrap;
         }
 
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 15px; }
@@ -531,6 +535,49 @@
             width: 42px;
             text-align: right;
             font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .device-scan-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .device-scan-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: center;
+            padding: 9px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #F8FAFC;
+        }
+
+        .device-scan-name {
+            min-width: 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: #0F172A;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .device-scan-meta {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .device-scan-count {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--accent-color);
             font-variant-numeric: tabular-nums;
         }
 
@@ -819,6 +866,7 @@
 </div>
 <div class="btn-group">
 <button class="btn btn-success btn-sm" onclick="openScanner()"><i class="icon-sm" data-lucide="smartphone"></i> <span data-i18n="admin.btn.open_scanner">Open Scanner</span></button>
+<button class="btn btn-secondary btn-sm" onclick="copyScannerUrl()"><i class="icon-sm" data-lucide="copy"></i> 复制手机访问地址</button>
 <button class="btn btn-secondary btn-sm" onclick="openAdmin()"><i class="icon-sm" data-lucide="refresh-cw"></i> <span data-i18n="admin.btn.refresh">Refresh Panel</span></button>
 <button class="btn btn-secondary btn-sm" style="color:var(--danger-color);border-color:var(--danger-color)" onclick="adminReset()"><i class="icon-sm" data-lucide="power"></i> <span data-i18n="admin.btn.reset">Reset Scanner</span></button>
 </div>
@@ -835,6 +883,12 @@
 <div style="display:flex;gap:8px;margin-top:12px;justify-content:center">
 <button class="btn btn-secondary btn-sm" onclick="resetSelectedDate()" id="cal-reset-btn" style="display:none;color:var(--danger-color);border-color:var(--danger-color)">重置选中日期</button>
 <button class="btn btn-secondary btn-sm" onclick="resetTodayScan()">重置今天</button>
+</div>
+<div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px">
+<div style="font-size:12px;font-weight:700;color:#0F172A;margin-bottom:8px">今日各设备扫描</div>
+<div id="device-scan-list" class="device-scan-list">
+<div style="font-size:11px;color:var(--text-muted);padding:8px 0">加载中...</div>
+</div>
 </div>
 </div>
 <!-- 无线调试 & 多设备管理 -->
@@ -1283,6 +1337,9 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 <script>
         // Initialize Lucide icons
         if (typeof lucide !== 'undefined') lucide.createIcons();
+        if (window.location.protocol === 'file:') {
+            window.location.replace('http://localhost:8080/admin.html');
+        }
 
         var currentConfig = {};
         var lanInfo = null;
@@ -1299,11 +1356,30 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                     throw new Error(data.message);
                 }
             } catch (e) {
-                showStatus('❌ 打开失败: ' + e.message, 'red');
+                const fallback = lanInfo && lanInfo.wifi_url ? '\n\n备用：在手机浏览器手动打开 ' + lanInfo.wifi_url : '';
+                const message = '❌ 打开失败: ' + e.message + fallback;
+                showStatus(message, 'red');
+                alert(message);
             }
         }
 
         function openAdmin() { location.reload(); }
+
+        async function copyScannerUrl() {
+            if (!lanInfo) await loadLanAccess();
+            const url = lanInfo && (lanInfo.wifi_url || lanInfo.usb_url);
+            if (!url) {
+                showStatus('⚠️ 暂无可复制的手机访问地址', 'red');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(url);
+                showStatus('✅ 已复制手机访问地址: ' + url, 'green');
+            } catch (e) {
+                showStatus('手机访问地址: ' + url, 'var(--accent-color)');
+                alert('手机访问地址: ' + url);
+            }
+        }
 
         async function loadLanAccess() {
             const urlEl = document.getElementById('lan-url');
@@ -1373,12 +1449,26 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
             }
         }
 
+        function resolveApiUrl(url) {
+            if (!url.startsWith('/')) return url;
+            if (window.location.protocol === 'file:') {
+                return 'http://127.0.0.1:8080' + url;
+            }
+            return url;
+        }
+
         async function fetchJsonOrThrow(url, label) {
+            const requestUrl = resolveApiUrl(url);
             let res;
             try {
-                res = await fetch(url);
+                res = await fetch(requestUrl);
             } catch (e) {
-                throw new Error(label + '网络请求失败: ' + e.message);
+                throw new Error(
+                    label + '网络请求失败: ' + e.message +
+                    '；当前页面=' + window.location.href +
+                    '；接口=' + requestUrl +
+                    '；请优先打开 http://localhost:8080/admin.html'
+                );
             }
 
             let payload = null;
@@ -1572,12 +1662,51 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
             el.style.fontWeight = count > 0 ? '600' : '';
         }
 
+        function renderDeviceScanList(devices) {
+            const container = document.getElementById('device-scan-list');
+            if (!container) return;
+            container.textContent = '';
+            const rows = Array.isArray(devices) ? devices : [];
+            const visibleRows = rows.filter(d => (Number(d.count) || 0) > 0).slice(0, 8);
+            if (!visibleRows.length) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'font-size:11px;color:var(--text-muted);padding:8px 0';
+                empty.textContent = '暂无设备扫描记录';
+                container.appendChild(empty);
+                return;
+            }
+            visibleRows.forEach(d => {
+                const row = document.createElement('div');
+                row.className = 'device-scan-row';
+
+                const info = document.createElement('div');
+                info.style.minWidth = '0';
+                const name = document.createElement('div');
+                name.className = 'device-scan-name';
+                name.textContent = d.label || d.device_id || '未知设备';
+                const meta = document.createElement('div');
+                meta.className = 'device-scan-meta';
+                meta.textContent = d.device_id || '';
+                info.appendChild(name);
+                info.appendChild(meta);
+
+                const count = document.createElement('div');
+                count.className = 'device-scan-count';
+                count.textContent = (Number(d.count) || 0) + ' 次';
+
+                row.appendChild(info);
+                row.appendChild(count);
+                container.appendChild(row);
+            });
+        }
+
         async function refreshScanCount() {
             try {
                 const res = await fetch('/api/scan-stats');
                 const data = await res.json();
                 document.getElementById('scan-today').textContent = data.count;
                 if (data.date) updateCalendarDayCount(data.date, data.count || 0);
+                renderDeviceScanList(data.devices || []);
             } catch {}
         }
         refreshScanCount();
@@ -2386,16 +2515,17 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                     container.textContent = '';
                     const hint = document.createElement('div');
                     hint.style.cssText = 'font-size:12px;color:var(--text-muted);text-align:center;padding:16px';
-                    hint.textContent = '未检测到设备，请用 USB 线连接手机';
+                    hint.textContent = data.message || '未检测到设备，请用 USB 线连接手机';
                     container.appendChild(hint);
                     updateStepIndicator(1);
                     return;
                 }
-                updateStepIndicator(data.devices.some(d => d.mode === 'wifi') ? 4 : 1);
+                updateStepIndicator(data.devices.some(d => d.mode === 'wifi' && d.adb_state === 'device') ? 4 : 1);
                 container.textContent = '';
                 data.devices.forEach(d => {
-                    const modeColor = d.mode === 'wifi' ? '#10b981' : '#0ea5e9';
-                    const modeBg = d.mode === 'wifi' ? 'rgba(16,185,129,0.06)' : 'rgba(14,165,233,0.04)';
+                    const isReady = !d.adb_state || d.adb_state === 'device';
+                    const modeColor = isReady ? (d.mode === 'wifi' ? '#10b981' : '#0ea5e9') : '#f59e0b';
+                    const modeBg = isReady ? (d.mode === 'wifi' ? 'rgba(16,185,129,0.06)' : 'rgba(14,165,233,0.04)') : 'rgba(245,158,11,0.06)';
                     const modeLabel = d.mode === 'wifi' ? 'WiFi' : 'USB';
                     const modelLabel = d.model || d.serial;
                     const row = document.createElement('div');
@@ -2411,15 +2541,16 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                     name.textContent = modelLabel;
                     const detail = document.createElement('div');
                     detail.style.cssText = 'font-size:11px;color:#64748B;margin-top:2px';
-                    detail.textContent = d.serial + ' · ' + modeLabel + (d.wifi_ip ? ' · IP: ' + d.wifi_ip : '');
+                    detail.textContent = d.serial + ' · ' + modeLabel + (d.adb_state && d.adb_state !== 'device' ? ' · ' + d.adb_state : '') + (d.wifi_ip ? ' · IP: ' + d.wifi_ip : '');
                     info.appendChild(name);
                     info.appendChild(detail);
                     // Button
                     const btn = document.createElement('button');
                     btn.className = 'btn btn-secondary btn-sm';
                     btn.style.cssText = 'flex-shrink:0';
-                    btn.textContent = '打开扫描器';
-                    btn.addEventListener('click', function() { openOnDevice(d.serial); });
+                    btn.textContent = isReady ? '打开扫描器' : '等待授权';
+                    btn.disabled = !isReady;
+                    if (isReady) btn.addEventListener('click', function() { openOnDevice(d.serial); });
                     row.appendChild(led);
                     row.appendChild(info);
                     row.appendChild(btn);

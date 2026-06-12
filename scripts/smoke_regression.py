@@ -133,6 +133,51 @@ def test_scan_stats():
     os.rmdir(tmpdir)
 
 
+def test_scan_stats_v2_device_helpers():
+    print("\n=== 2) scan_stats v2 device helpers ===")
+
+    import server
+
+    stats = {
+        "schema": "v2",
+        "global": {"2026-06-12": 3},
+        "devices": {
+            "phone-a": {"2026-06-12": 2},
+            "phone-b": {"2026-06-12": 1},
+        },
+        "deviceMeta": {
+            "phone-a": {"label": "Pixel 8", "lastSeen": "2026-06-12"},
+            "phone-b": {"label": "iPhone", "lastSeen": "2026-06-12"},
+        },
+    }
+
+    _result(
+        "global count uses v2 global",
+        server._get_global_scan_count(stats, "2026-06-12") == 3,
+        f"got {server._get_global_scan_count(stats, '2026-06-12')}",
+    )
+
+    rows = server._device_scan_rows(stats, "2026-06-12")
+    _result(
+        "device rows sorted by count",
+        rows[0]["label"] == "Pixel 8" and rows[0]["count"] == 2 and rows[1]["label"] == "iPhone",
+        f"got {rows}",
+    )
+
+    server._set_global_scan_count(stats, "2026-06-12", 4)
+    server._set_device_scan_count(stats, "phone-b", "2026-06-12", 2, "iPhone")
+    _result(
+        "set global mirrors legacy date",
+        stats["global"]["2026-06-12"] == 4 and stats["2026-06-12"] == 4,
+        f"got global={stats.get('global')} legacy={stats.get('2026-06-12')}",
+    )
+    _result(
+        "set device count updates meta",
+        stats["devices"]["phone-b"]["2026-06-12"] == 2 and stats["deviceMeta"]["phone-b"]["label"] == "iPhone",
+        f"got {stats['devices'].get('phone-b')} {stats['deviceMeta'].get('phone-b')}",
+    )
+
+
 # ───────────────────────────────────────
 # 2) OcrRuntime post-close behavior
 # ───────────────────────────────────────
@@ -372,6 +417,7 @@ def main():
 
     # Sync tests
     test_scan_stats()
+    test_scan_stats_v2_device_helpers()
 
     # Async tests
     asyncio.run(test_ocr_runtime_lifecycle())
