@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import time
+import types
 
 # Ensure project root on sys.path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -241,11 +242,98 @@ async def test_paddle_fallback():
 
 
 # ───────────────────────────────────────
-# 4) Ollama OCR response cleanup
+# 4) PaddleOCR v6 tiny initialization
+# ───────────────────────────────────────
+
+async def test_paddle_v6_tiny_init():
+    print("\n=== 4) PaddleOCR v6 tiny init ===")
+
+    from ocr import OcrRuntime
+    import aiohttp
+
+    tmpdir = tempfile.mkdtemp()
+    cfg_path = os.path.join(tmpdir, "config.json")
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "ocr": {
+                "provider": "paddle",
+                "ollama": {
+                    "baseUrl": "http://localhost:11434",
+                    "model": "glm-ocr",
+                    "keepAlive": "10m",
+                },
+                "baidu": {"apiKey": "", "secretKey": ""},
+                "ocrspace": {"apiKey": "", "language": "chs"},
+                "openai": {
+                    "apiKey": "",
+                    "model": "gpt-4o-mini",
+                    "baseUrl": "https://api.openai.com/v1",
+                },
+                "paddle": {"useGpu": False},
+            }
+        }, f)
+
+    calls = []
+
+    class FakePaddleOCR:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    fake_paddle = types.SimpleNamespace(set_flags=lambda flags: None)
+    fake_paddleocr = types.ModuleType("paddleocr")
+    fake_paddleocr.PaddleOCR = FakePaddleOCR
+
+    old_paddle = sys.modules.get("paddle")
+    old_paddleocr = sys.modules.get("paddleocr")
+    sys.modules["paddle"] = fake_paddle
+    sys.modules["paddleocr"] = fake_paddleocr
+
+    session = aiohttp.ClientSession()
+    rt = OcrRuntime(cfg_path, session)
+    try:
+        rt._get_paddle_ocr()
+        kwargs = calls[0] if calls else {}
+        _result(
+            "uses PP-OCRv6",
+            kwargs.get("ocr_version") == "PP-OCRv6",
+            f"got: {kwargs.get('ocr_version')}",
+        )
+        _result(
+            "uses tiny detection model",
+            kwargs.get("text_detection_model_name") == "PP-OCRv6_tiny_det",
+            f"got: {kwargs.get('text_detection_model_name')}",
+        )
+        _result(
+            "uses tiny recognition model",
+            kwargs.get("text_recognition_model_name") == "PP-OCRv6_tiny_rec",
+            f"got: {kwargs.get('text_recognition_model_name')}",
+        )
+        _result(
+            "keeps CPU default",
+            kwargs.get("device") == "cpu",
+            f"got: {kwargs.get('device')}",
+        )
+    finally:
+        await rt.close()
+        await session.close()
+        if old_paddle is None:
+            sys.modules.pop("paddle", None)
+        else:
+            sys.modules["paddle"] = old_paddle
+        if old_paddleocr is None:
+            sys.modules.pop("paddleocr", None)
+        else:
+            sys.modules["paddleocr"] = old_paddleocr
+        os.unlink(cfg_path)
+        os.rmdir(tmpdir)
+
+
+# ───────────────────────────────────────
+# 5) Ollama OCR response cleanup
 # ───────────────────────────────────────
 
 def test_ollama_cleanup():
-    print("\n=== 4) Ollama OCR cleanup ===")
+    print("\n=== 5) Ollama OCR cleanup ===")
 
     from ocr import clean_ollama_ocr_text
 
@@ -288,6 +376,7 @@ def main():
     # Async tests
     asyncio.run(test_ocr_runtime_lifecycle())
     asyncio.run(test_paddle_fallback())
+    asyncio.run(test_paddle_v6_tiny_init())
     test_ollama_cleanup()
 
     # Summary

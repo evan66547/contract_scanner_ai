@@ -38,7 +38,10 @@
       "language": "chs"
     },
     "paddle": {
-      "useGpu": false
+      "useGpu": false,
+      "ocrVersion": "PP-OCRv6",
+      "textDetectionModelName": "PP-OCRv6_tiny_det",
+      "textRecognitionModelName": "PP-OCRv6_tiny_rec"
     }
   }
 }

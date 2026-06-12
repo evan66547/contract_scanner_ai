@@ -208,6 +208,11 @@ class OcrRuntime:
             cfg["ocr"]["ocrspace"] = {"apiKey": "", "language": "chs"}
         if "paddle" not in cfg.get("ocr", {}):
             cfg["ocr"]["paddle"] = {"useGpu": False}
+        paddle_cfg = cfg["ocr"]["paddle"]
+        paddle_cfg.setdefault("useGpu", False)
+        paddle_cfg.setdefault("ocrVersion", "PP-OCRv6")
+        paddle_cfg.setdefault("textDetectionModelName", "PP-OCRv6_tiny_det")
+        paddle_cfg.setdefault("textRecognitionModelName", "PP-OCRv6_tiny_rec")
         return cfg
 
     # ── Provider adapters（Phase 3） ──
@@ -319,14 +324,22 @@ class OcrRuntime:
                 pass
 
             from paddleocr import PaddleOCR
+            paddle_cfg = self.get_config().get("ocr", {}).get("paddle", {})
             self._paddle_ocr_instance = PaddleOCR(
                 lang='ch',
-                ocr_version='PP-OCRv4',
+                ocr_version=paddle_cfg.get("ocrVersion", "PP-OCRv6"),
+                text_detection_model_name=paddle_cfg.get(
+                    "textDetectionModelName", "PP-OCRv6_tiny_det"
+                ),
+                text_recognition_model_name=paddle_cfg.get(
+                    "textRecognitionModelName", "PP-OCRv6_tiny_rec"
+                ),
                 text_det_limit_side_len=480,
                 text_recognition_batch_size=1,
                 use_doc_orientation_classify=False,
                 use_doc_unwarping=False,
-                use_textline_orientation=False
+                use_textline_orientation=False,
+                device="gpu:0" if paddle_cfg.get("useGpu") else "cpu"
             )
         return self._paddle_ocr_instance
 
