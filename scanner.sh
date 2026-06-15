@@ -21,7 +21,7 @@ start() {
     fi
     
     cd "$APP_DIR"
-    nohup python3 server.py > /tmp/scanner.log 2>&1 &
+    nohup "$APP_DIR/.venv/bin/python" server.py > /tmp/scanner.log 2>&1 &
     echo $! > "$PID_FILE"
     sleep 1
     

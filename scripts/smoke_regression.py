@@ -177,6 +177,16 @@ def test_scan_stats_v2_device_helpers():
         f"got {stats['devices'].get('phone-b')} {stats['deviceMeta'].get('phone-b')}",
     )
 
+    legacy_rows = server._device_scan_rows(
+        {"schema": "v2", "global": {"2026-06-12": 5}, "devices": {}, "deviceMeta": {}},
+        "2026-06-12",
+    )
+    _result(
+        "unassigned row covers legacy device-less scans",
+        legacy_rows == [{"device_id": "unassigned", "label": "未归属设备", "count": 5, "lastSeen": "2026-06-12"}],
+        f"got {legacy_rows}",
+    )
+
 
 # ───────────────────────────────────────
 # 2) OcrRuntime post-close behavior

@@ -573,17 +573,29 @@ def _set_device_scan_count(stats: dict, device_id: str, target_date: str, count:
 def _device_scan_rows(stats: dict, target_date: str) -> list:
     stats = _normalize_scan_stats(stats)
     rows = []
+    device_total = 0
     for device_id, device_stats in stats["devices"].items():
         if not isinstance(device_stats, dict):
             continue
         count = _coerce_scan_count(device_stats.get(target_date, 0))
+        device_total += count
         meta = stats["deviceMeta"].get(device_id, {}) if isinstance(stats["deviceMeta"].get(device_id), dict) else {}
         label = _sanitize_device_label(meta.get("label"), device_id)
+        if label == "K" and device_id.startswith("dev-"):
+            label = "Android 手机"
         rows.append({
             "device_id": device_id,
             "label": label,
             "count": count,
             "lastSeen": meta.get("lastSeen", "")
+        })
+    unassigned = max(0, _get_global_scan_count(stats, target_date) - device_total)
+    if unassigned > 0:
+        rows.append({
+            "device_id": "unassigned",
+            "label": "未归属设备",
+            "count": unassigned,
+            "lastSeen": target_date
         })
     rows.sort(key=lambda item: (-item["count"], item["label"]))
     return rows
@@ -924,6 +936,17 @@ async def admin_reset():
             pass
     active_ws_clients.clear()
     return {"success": True, "disconnected": disconnected}
+
+async def _shutdown_process():
+    await asyncio.sleep(0.3)
+    logger.info("🛑 管理面板请求关闭程序")
+    os._exit(0)
+
+@app.post("/api/shutdown")
+async def shutdown_app():
+    """管理面板关闭程序：响应发送后退出当前 Python 进程"""
+    asyncio.create_task(_shutdown_process())
+    return {"success": True, "message": "程序正在关闭"}
 
 @app.post("/api/targets/clear")
 async def clear_targets():

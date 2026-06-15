@@ -67,4 +67,4 @@ echo "   (Use ADB reverse to access via USB: adb reverse tcp:${PORT} tcp:${PORT}
 # iOS scanning requires Tailscale HTTPS tunnel (see admin panel for setup)
 echo "------------------------------------------"
 echo "🚀 Server is running. Press Ctrl+C to stop."
-python3 server.py
+"$VENV_DIR/bin/python" server.py

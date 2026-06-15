@@ -869,6 +869,7 @@
 <button class="btn btn-secondary btn-sm" onclick="copyScannerUrl()"><i class="icon-sm" data-lucide="copy"></i> 复制手机访问地址</button>
 <button class="btn btn-secondary btn-sm" onclick="openAdmin()"><i class="icon-sm" data-lucide="refresh-cw"></i> <span data-i18n="admin.btn.refresh">Refresh Panel</span></button>
 <button class="btn btn-secondary btn-sm" style="color:var(--danger-color);border-color:var(--danger-color)" onclick="adminReset()"><i class="icon-sm" data-lucide="power"></i> <span data-i18n="admin.btn.reset">Reset Scanner</span></button>
+<button class="btn btn-secondary btn-sm" style="color:var(--danger-color);border-color:var(--danger-color)" onclick="shutdownApp()"><i class="icon-sm" data-lucide="power-off"></i> 关闭程序</button>
 </div>
 </div>
 <!-- 扫描统计日历 -->
@@ -1446,6 +1447,21 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                 }
             } catch (e) {
                 showStatus('❌ 重置失败: ' + e.message, 'red');
+            }
+        }
+
+        async function shutdownApp() {
+            if (!confirm('确定要彻底关闭程序吗？\n\n关闭后电脑面板和手机扫描都会断开，需要重新启动服务才能继续使用。')) return;
+            showStatus('🛑 正在关闭程序...', 'var(--danger-color)');
+            try {
+                const res = await fetch('/api/shutdown', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.success === false) {
+                    throw new Error(data.message || data.error || '关闭失败');
+                }
+                showStatus('✅ 程序正在关闭。此页面稍后将无法连接。', 'var(--danger-color)');
+            } catch (e) {
+                showStatus('❌ 关闭失败: ' + e.message, 'red');
             }
         }
 

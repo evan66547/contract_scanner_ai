@@ -187,9 +187,15 @@ function detectDeviceLabel() {
   const ua = navigator.userAgent || '';
   if (/iPhone/i.test(ua)) return 'iPhone';
   if (/iPad/i.test(ua)) return 'iPad';
-  const androidModel = ua.match(/Android[^;]*;\s*([^;)]+)[;) ]/i);
+  const androidModel = ua.match(/Android[^;]*;\s*([^;)]+)\s+Build\/[^;)]+/i);
   if (androidModel && androidModel[1]) {
-    return androidModel[1].replace(/\s+Build\/.*/, '').trim().slice(0, 32) || 'Android 手机';
+    const model = androidModel[1]
+      .replace(/\bwv\b/ig, '')
+      .replace(/\bMobile\b/ig, '')
+      .trim();
+    if (model && model.length > 1 && !/^[A-Z]$/i.test(model)) {
+      return model.slice(0, 32);
+    }
   }
   if (/Android/i.test(ua)) return 'Android 手机';
   return navigator.platform || '手机设备';
