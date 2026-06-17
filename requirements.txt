@@ -4,4 +4,6 @@ ollama
 openpyxl
 aiohttp
 qrcode[pil]  # 服务端生成 WiFi 二维码，支持纯内网环境
-# paddleocr>=3.7.0  # 可选：本地离线 OCR 引擎；3.7+ 支持 PP-OCRv6 tiny
+mlx-vlm  # Apple Silicon 本地 GLM-OCR 8bit 推理
+paddleocr>=3.7.0,<3.8.0  # 本地离线 OCR 引擎；3.7+ 支持 PP-OCRv6 tiny
+paddlepaddle>=3.3.1  # PaddleOCR 核心运行时（macOS arm64 CPU）

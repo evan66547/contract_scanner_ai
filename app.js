@@ -5,9 +5,11 @@
 
 // 全局状态
 let targets = [];
+let targetCharWeights = null;
 const STATE = { SCANNING: 'scanning', MATCHED: 'matched', NOT_MATCHED: 'not-matched' };
 
 let isScanning = true;
+let shouldAutoScan = false;
 let scanInterval = null;
 let consecutiveMatches = 0;
 let lastMatchedTarget = null;
@@ -17,6 +19,27 @@ let matchDismissTimer = null;
 let lastScanTime = 0;
 let frameCount = 0;
 let config = {};
+const DEFAULT_CONFIG = {
+  scan: { width: 640, height: 480, frameRate: 30 },
+  roi: { x: 5, y: 5, width: 90, height: 12 },
+  matching: {
+    minConfidence: 0,
+    levenshteinDistance: null,
+    minMatchRatio: 0.6,
+    requirePrefix: true,
+    minKeywordLength: 5
+  },
+  ui: { showDebug: true, showOverlay: true },
+  ocr: {
+    provider: 'paddle',
+    paddle: {
+      useGpu: false,
+      ocrVersion: 'PP-OCRv6',
+      textDetectionModelName: 'PP-OCRv6_tiny_det',
+      textRecognitionModelName: 'PP-OCRv6_tiny_rec'
+    }
+  }
+};
 let adbWifiIp = null;
 let adbStepStates = [1, 0, 0, 0, 0]; // 0=默认, 1=active, 2=done
 let ws = null;
@@ -150,7 +173,7 @@ async function init() {
             '当前浏览器限制了非 localhost 的摄像头权限。\n\n' +
             'Android Chrome: 打开 chrome://flags/#unsafely-treat-insecure-origin-as-secure，填入 ' + window.location.origin + ' 并重启 Chrome。\n\n' +
             'iPhone/Safari: 必须使用管理台里的 Tailscale HTTPS 地址。\n\n' +
-            'USB/ADB: 可继续使用 localhost:8080。');
+            'USB/ADB: 可继续使用 localhost:8093。');
         } else {
           updateStatus(STATE.NOT_MATCHED, '❌', '启动失败', e.message);
         }
@@ -219,7 +242,23 @@ function getScannerDeviceInfo() {
 async function loadConfig() {
   log('⚙️ 加载配置...');
   const res = await fetch('/api/config?t=' + Date.now());
-  config = await res.json();
+  const loadedConfig = await res.json();
+  config = {
+    ...DEFAULT_CONFIG,
+    ...loadedConfig,
+    scan: { ...DEFAULT_CONFIG.scan, ...(loadedConfig.scan || {}) },
+    roi: { ...DEFAULT_CONFIG.roi, ...(loadedConfig.roi || {}) },
+    matching: { ...DEFAULT_CONFIG.matching, ...(loadedConfig.matching || {}) },
+    ui: { ...DEFAULT_CONFIG.ui, ...(loadedConfig.ui || {}) },
+    ocr: {
+      ...DEFAULT_CONFIG.ocr,
+      ...(loadedConfig.ocr || {}),
+      paddle: {
+        ...DEFAULT_CONFIG.ocr.paddle,
+        ...((loadedConfig.ocr && loadedConfig.ocr.paddle) || {})
+      }
+    }
+  };
   log('✅ 配置已加载');
 }
 
@@ -264,18 +303,24 @@ async function loadCompanies() {
     const name = typeof item === 'string' ? item : item.name;
     const displayInfo = typeof item === 'object' ? (item.displayInfo || item.orderDate || '') : '';
     const displayInfo2 = typeof item === 'object' ? (item.displayInfo2 || '') : '';
+    const short = extractShortName(name);
+    const core = normalizeCoreName(short);
+    const coreNoRegion = stripLeadingRegion(core);
 
     return {
       full: name,
       displayInfo: displayInfo,
       displayInfo2: displayInfo2,
       normalized: normalizeText(name),
-      short: extractShortName(name),
+      short: short,
+      core: core,
+      coreNoRegion: coreNoRegion,
       keywords: extractKeywords(name),
       variants: generateVariants(name)
     };
   });
 
+  buildTargetCharWeights();
   log(`✅ ${t('msg.loaded_count', 'Loaded')} ${targets.length} ${t('msg.targets', 'targets')}`);
 }
 
@@ -333,6 +378,210 @@ function generateVariants(name) {
   });
 
   return variants;
+}
+
+function normalizeCoreName(name) {
+  return extractShortName(name || '');
+}
+
+function stripLeadingRegion(text) {
+  const regionPrefixes = [
+    '北京市', '重庆市', '天津市', '上海市', '杭州市', '宁波市', '温州市', '宁波', '温州',
+    '江苏省', '浙江省', '广东省', '四川省', '湖北省', '山东省', '河南省', '河北省', '山西省', '辽宁省',
+    '安徽省', '福建省', '贵州省', '甘肃省', '广西', '黑龙江', '吉林省', '江苏', '浙江', '广东', '四川',
+    '湖北', '山东', '河南', '河北', '山西', '辽宁', '安徽', '福建', '贵州', '甘肃', '河南', '云南', '北京',
+    '天津', '上海', '重庆', '吉林', '黑龙江', '海南', '香港', '澳门', '台湾'
+  ];
+  for (const prefix of regionPrefixes) {
+    if (text.startsWith(prefix)) return text.slice(prefix.length);
+  }
+  return text;
+}
+
+function detectLeadingRegion(text) {
+  const regionPrefixes = [
+    '北京市', '重庆市', '天津市', '上海市', '杭州市', '宁波市', '温州市', '江苏省', '浙江省', '广东省',
+    '四川省', '湖北省', '山东省', '河南省', '河北省', '山西省', '辽宁省', '安徽省', '福建省', '贵州省',
+    '甘肃省', '吉林省', '黑龙江', '浙江', '江苏', '广东', '四川', '湖北', '山东', '河南', '河北',
+    '山西', '辽宁', '安徽', '福建', '贵州', '甘肃', '福建', '黑龙江', '吉林', '北京', '天津', '上海', '重庆'
+  ];
+  for (const prefix of regionPrefixes) {
+    if (text.startsWith(prefix)) return prefix;
+  }
+  return '';
+}
+
+function extractCompanyCandidates(text) {
+  if (!text) return [];
+  const suffixes = ['有限公司', '有限责任公司', '股份有限公司', '股份公司', '总公司', '分公司', '控股公司', '集团', '公司', '中心', '企业'];
+  const suffixPattern = suffixes.join('|');
+  const companyReg = new RegExp('([\\u4e00-\\u9fff]{2,60}(?:' + suffixPattern + '))', 'g');
+  const rawParts = String(text).split(/[\\n\\r\\s,，;；:：|\\/]/);
+  const candidates = new Set();
+  const noisePrefixes = ['买方单位', '卖方单位', '签订方式', '乙方', '甲方', '单位', '买方', '卖方'];
+
+  for (const rawPart of rawParts) {
+    let part = normalizeText(rawPart);
+    if (!part) continue;
+
+    const matched = part.match(companyReg);
+    if (matched && matched.length) {
+      matched.forEach(item => {
+        if (item.length >= 5) candidates.add(item);
+      });
+    }
+
+    let filtered = part;
+    noisePrefixes.forEach(prefix => {
+      const pattern = new RegExp('^' + prefix);
+      if (pattern.test(filtered)) filtered = filtered.replace(pattern, '');
+    });
+    if (filtered.length >= 5) candidates.add(filtered);
+  }
+
+  if (candidates.size === 0) candidates.add(normalizeText(text));
+  return [...candidates];
+}
+
+function buildTargetCharWeights() {
+  if (!targets.length) {
+    targetCharWeights = {};
+    return;
+  }
+  const docCount = targets.length;
+  const docFreq = Object.create(null);
+
+  targets.forEach(target => {
+    const chars = new Set(target.core.split(''));
+    chars.forEach(ch => {
+      docFreq[ch] = (docFreq[ch] || 0) + 1;
+    });
+  });
+
+  const weights = Object.create(null);
+  Object.keys(docFreq).forEach(ch => {
+    weights[ch] = 1 + Math.log((docCount + 1) / (docFreq[ch] + 1));
+  });
+  targetCharWeights = weights;
+}
+
+function getCharWeight(ch) {
+  return targetCharWeights && targetCharWeights[ch] ? targetCharWeights[ch] : 1;
+}
+
+function calcWeightedOverlap(a, b) {
+  const targetSet = new Set(String(b || '').split(''));
+  if (targetSet.size === 0) return 0;
+  const ocrSet = new Set(String(a || '').split(''));
+  let matchedWeight = 0;
+  let totalWeight = 0;
+
+  targetSet.forEach(ch => {
+    const w = getCharWeight(ch);
+    totalWeight += w;
+    if (ocrSet.has(ch)) matchedWeight += w;
+  });
+
+  return totalWeight > 0 ? matchedWeight / totalWeight : 0;
+}
+
+function calcBigramDice(a, b) {
+  const s1 = String(a || '');
+  const s2 = String(b || '');
+  if (s1.length < 2 || s2.length < 2) return 0;
+
+  const buildBigrams = (text) => {
+    const set = new Set();
+    for (let i = 0; i < text.length - 1; i++) set.add(text.substring(i, i + 2));
+    return set;
+  };
+
+  const set1 = buildBigrams(s1);
+  const set2 = buildBigrams(s2);
+  if (set1.size === 0 && set2.size === 0) return 0;
+
+  let overlap = 0;
+  set1.forEach(v => { if (set2.has(v)) overlap++; });
+  const union = set1.size + set2.size;
+  return union > 0 ? (2 * overlap) / union : 0;
+}
+
+function calcLcsSimilarity(a, b) {
+  const s1 = String(a || '');
+  const s2 = String(b || '');
+  const m = s1.length;
+  const n = s2.length;
+  if (m === 0 || n === 0) return 0;
+
+  const prev = Array(n + 1).fill(0);
+  for (let i = 1; i <= m; i++) {
+    const cur = Array(n + 1).fill(0);
+    for (let j = 1; j <= n; j++) {
+      if (s1[i - 1] === s2[j - 1]) {
+        cur[j] = prev[j - 1] + 1;
+      } else {
+        cur[j] = Math.max(prev[j], cur[j - 1]);
+      }
+    }
+    prev.splice(0, prev.length, ...cur);
+  }
+  const lcsLen = prev[n];
+  return lcsLen / Math.min(m, n);
+}
+
+function calcEditSimilarity(a, b) {
+  const s1 = String(a || '');
+  const s2 = String(b || '');
+  if (s1.length === 0 || s2.length === 0) return 0;
+  const dist = levenshteinDistance(s1, s2);
+  const maxLen = Math.max(s1.length, s2.length);
+  return Math.max(0, 1 - dist / maxLen);
+}
+
+function calcRegionalPenalty(a, b) {
+  const aRegion = detectLeadingRegion(a);
+  const bRegion = detectLeadingRegion(b);
+  if (aRegion && bRegion) {
+    return aRegion === bRegion ? 2 : -6;
+  }
+  if (aRegion || bRegion) return -2;
+  return 0;
+}
+
+function calcScientificScore(ocrText, target) {
+  let bestScore = 0;
+  let bestType = '';
+  const candidates = extractCompanyCandidates(ocrText);
+  const t1 = target.core || target.short || target.normalized;
+  const t2 = target.coreNoRegion || stripLeadingRegion(t1);
+
+  const candidatePairs = [];
+  candidates.forEach(candidate => {
+    const c1 = normalizeCoreName(candidate);
+    const c2 = stripLeadingRegion(c1);
+    if (c1.length >= 2) candidatePairs.push({ label: '含前缀', candidate: c1, target: t1 });
+    if (c2.length >= 2 && c2 !== c1) candidatePairs.push({ label: '去地域', candidate: c2, target: t1 });
+    if (t2 && t2.length >= 2 && t2 !== t1) candidatePairs.push({ label: '目标去地域', candidate: c1, target: t2 });
+  });
+
+  if (candidatePairs.length === 0) return { score: 0, type: '' };
+
+  candidatePairs.forEach(pair => {
+    const overlap = calcWeightedOverlap(pair.candidate, pair.target);
+    const dice = calcBigramDice(pair.candidate, pair.target);
+    const edit = calcEditSimilarity(pair.candidate, pair.target);
+    const lcs = calcLcsSimilarity(pair.candidate, pair.target);
+    const regionDelta = calcRegionalPenalty(pair.candidate, pair.target);
+    let score = 40 * overlap + 25 * dice + 20 * edit + 15 * lcs + regionDelta;
+    score = Math.max(0, Math.min(100, score));
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestType = pair.label === '含前缀' ? '科学匹配' : `科学匹配·${pair.label}`;
+    }
+  });
+
+  return { score: Math.round(bestScore), type: bestType || '科学匹配' };
 }
 
 // 初始化摄像头
@@ -460,7 +709,7 @@ function initWebSocket() {
       loadCompanies().catch(() => {});
       updateStatus(STATE.SCANNING, '⏳', t('app.scanning', '自动扫描中...'));
       // 如果之前因断线而暂停扫描，重连后自动恢复
-      if (isScanning && !scanInterval) {
+      if (shouldAutoScan && !scanInterval) {
         startScanning();
         log('▶️ 扫描已自动恢复');
       }
@@ -516,6 +765,7 @@ function initWebSocket() {
             
             // 匹配成功后进入等待点击状态
             isScanning = false;
+            shouldAutoScan = false;
             if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
           }
         } else {
@@ -529,6 +779,7 @@ function initWebSocket() {
             
             // 不匹配也进入等待点击状态
             isScanning = false;
+            shouldAutoScan = false;
             if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
             
             if (frameCount % 3 === 0 && config.ui.showDebug) {
@@ -548,7 +799,7 @@ function initWebSocket() {
       clearTimeout(connectTimeout);
       isWsConnected = false;
       // WebSocket 断开时暂停扫描，避免无效轮询
-      stopScanning();
+      stopScanning({ preserveIntent: true });
       log('⏸️ WebSocket 断开，扫描已自动暂停');
       // WebSocket 断开时清理前端识别状态，防止标志永久卡住
       if (isProcessing) {
@@ -581,6 +832,7 @@ function startScanning() {
   if (scanInterval) return;
 
   isScanning = true;
+  shouldAutoScan = true;
   toggleBtn.innerHTML = ICONS['⏸'] || '⏸';
   toggleBtn.setAttribute('aria-label', t('app.pause', 'Pause'));
 
@@ -598,12 +850,13 @@ function startScanning() {
   log('▶️ 自动扫描已启动');
 }
 
-function stopScanning() {
+function stopScanning(options = {}) {
   if (scanInterval) {
     clearInterval(scanInterval);
     scanInterval = null;
   }
   isScanning = false;
+  if (!options.preserveIntent) shouldAutoScan = false;
   toggleBtn.innerHTML = ICONS['▶'] || '▶';
   toggleBtn.setAttribute('aria-label', t('app.resume', 'Resume'));
 
@@ -836,18 +1089,17 @@ function matchTarget(ocrText) {
       }
     }
 
-    // 字符重叠相似度（用 Set 避免重复计数）
-    if (score === 0 && normalized.length >= 2) {
-      var shortChars = new Set(targetShort);
-      var ocrChars = new Set(normalized);
-      var overlap = 0;
-      shortChars.forEach(function(ch) { if (ocrChars.has(ch)) overlap++; });
-
-      var overlapRatio = overlap / shortChars.size;
-      if (overlapRatio >= 0.4) {
-        score = Math.round(overlapRatio * 40); // 最高40分
-        matchType = '字符相似';
-        candidates.push({ target: target.full, displayInfo: target.displayInfo, displayInfo2: target.displayInfo2, score: score, matchType: matchType });
+    // 科学匹配：字符权重 + 顺序相关性
+    if (normalized.length >= 2) {
+      const scientific = calcScientificScore(ocrText, target);
+      if (scientific.score > 0) {
+        const shouldReplaceType = scientific.score > score;
+        score = Math.max(score, scientific.score);
+        if (shouldReplaceType) matchType = scientific.type;
+        candidates.push({ target: target.full, displayInfo: target.displayInfo, displayInfo2: target.displayInfo2, score: score, matchType });
+        if (score >= 65 && (!bestMatch || score > bestMatch.score)) {
+          bestMatch = { matched: true, target: target.full, displayInfo: target.displayInfo, displayInfo2: target.displayInfo2, score, matchType };
+        }
       }
     }
   }
@@ -868,8 +1120,14 @@ function matchTarget(ocrText) {
   var topCandidates = uniqueCandidates.slice(0, 5);
 
   if (bestMatch) {
+    const bestScore = topCandidates[0] ? topCandidates[0].score : bestMatch.score;
+    const isHighConfidence = bestScore >= 90;
+
     bestMatch.candidates = topCandidates;
-    return bestMatch;
+    if (isHighConfidence) {
+      return bestMatch;
+    }
+    return { matched: false, candidates: topCandidates };
   }
 
   return { matched: false, candidates: topCandidates };
@@ -1089,12 +1347,12 @@ function log(msg) {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (isScanning) {
-      stopScanning();
+      stopScanning({ preserveIntent: true });
       log('⏸️ 页面进入后台，扫描已暂停');
     }
   } else {
     refreshDailyTotalCount();
-    if (isScanning && !scanInterval && isWsConnected) {
+    if (shouldAutoScan && !scanInterval && isWsConnected) {
       startScanning();
       log('▶️ 页面回到前台，扫描已恢复');
     }
@@ -1249,7 +1507,7 @@ async function startAdbWifi() {
       if (cmdHint) cmdHint.style.display = 'inline';
       // 更新命令框显示实际IP
       if (cmdBox && adbWifiIp) {
-        cmdBox.innerHTML = 'adb connect ' + adbWifiIp + ':5555<br>adb reverse tcp:8080 tcp:8080';
+        cmdBox.innerHTML = 'adb connect ' + adbWifiIp + ':5555<br>adb reverse tcp:8093 tcp:8093';
       }
       // 步骤1-2完成，步骤3激活（等待拔线）
       adbStepStates = [2, 2, 1, 0, 0];
@@ -1297,7 +1555,7 @@ async function connectAdbWifi() {
     });
     const data = await res.json();
     if (data.status === 'success') {
-      if (statusEl) statusEl.textContent = '连接成功！请刷新手机页面 (localhost:8080)';
+      if (statusEl) statusEl.textContent = '连接成功！请刷新手机页面 (localhost:8093)';
     } else {
       if (statusEl) statusEl.textContent = '连接失败: ' + data.message;
     }

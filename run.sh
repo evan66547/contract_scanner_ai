@@ -42,7 +42,7 @@ fi
 
 # 6. Start the Server
 echo "------------------------------------------"
-PORT=${PORT:-8080}
+PORT=${PORT:-8093}
 LAN_IP=""
 if command -v ipconfig >/dev/null 2>&1; then
     LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || true)

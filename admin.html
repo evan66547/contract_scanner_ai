@@ -946,54 +946,60 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 <li>点击「开启无线连接」按钮</li>
 <li>拔掉 USB 线</li>
 <li>点击「连接手机」按钮</li>
-<li>在手机浏览器地址栏输入：<code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px;font-size:11px">localhost:8080</code></li>
+<li>在手机浏览器地址栏输入：<code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px;font-size:11px">localhost:8093</code></li>
 </ol>
 </div>
 
-<!-- iOS Scanning Card -->
+<!-- Tailscale Scanning Card -->
 <div style="margin-top:16px;border:1px solid rgba(99,102,241,0.15);border-radius:10px;overflow:hidden">
   <div onclick="toggleIosCard()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);cursor:pointer">
     <div style="display:flex;align-items:center;gap:8px;font-weight:600;color:#4f46e5;font-size:13px">
-      <span>🍎</span> iOS 扫描 (Tailscale)
+      <span>🔐</span> Tailscale 远程扫描
     </div>
     <span id="ios-chevron" style="color:#6366f1;transition:transform 0.2s">▶</span>
   </div>
   <div id="ios-content" style="display:none;padding:14px;font-size:12px;color:var(--text-main);line-height:1.8">
-    <p style="margin:0 0 10px 0">iOS Safari 只允许 HTTPS 网站调用摄像头。Tailscale 会为 Mac 自动生成私有 HTTPS 证书，让 iPhone 安全访问本服务，无需公网 IP。</p>
+    <p style="margin:0 0 10px 0">用于换手机、iPhone 或不在同一 Wi-Fi 的场景。Tailscale 会生成私有 HTTPS 地址，手机打开后可直接调用摄像头扫描。</p>
+
+    <div style="background:rgba(15,23,42,0.04);border:1px solid rgba(15,23,42,0.08);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;color:var(--text-main)">连接状态</div>
+          <div id="tailscale-status" style="font-size:11px;color:#64748b">检测中...</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="checkTailscaleStatus()">检测</button>
+          <button class="btn btn-primary btn-sm" id="tailscale-start-btn" onclick="startTailscaleServe()">一键启用</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:11px;color:#64748b;margin-bottom:4px">手机访问地址：</div>
+          <code id="tailscale-url" style="display:block;background:rgba(0,0,0,0.06);padding:8px 10px;border-radius:6px;font-family:monospace;font-size:13px;word-break:break-all">点击“一键启用”后生成</code>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="copyTailscaleUrl()">复制地址</button>
+            <button class="btn btn-secondary btn-sm" onclick="openTailscaleUrl()">本机打开测试</button>
+          </div>
+        </div>
+        <img id="tailscale-qr" alt="Tailscale QR" style="width:92px;height:92px;border:1px solid rgba(99,102,241,0.16);border-radius:8px;background:#fff;padding:4px;display:none"/>
+      </div>
+    </div>
 
     <div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.12);border-radius:8px;padding:10px 12px;margin-bottom:10px">
-      <div style="font-weight:600;color:#4f46e5;margin-bottom:6px">首次配置（只需一次）</div>
+      <div style="font-weight:600;color:#4f46e5;margin-bottom:6px">首次配置</div>
       <ol style="margin:0 0 0 18px;padding:0">
-        <li>Mac 与 iPhone 分别从 App Store 安装 <a href="https://tailscale.com/download" target="_blank" style="color:#4f46e5">Tailscale</a></li>
+        <li>Mac 与手机分别安装 <a href="https://tailscale.com/download" target="_blank" style="color:#4f46e5">Tailscale</a></li>
         <li>两端登录<strong>同一个账号</strong>（可用 Google/Apple/Microsoft 账号）</li>
         <li>Mac 浏览器打开 <a href="https://login.tailscale.com/admin/dns" target="_blank" style="color:#4f46e5">Tailscale 管理后台</a></li>
         <li>打开 <strong>HTTPS Certificates</strong> 和 <strong>MagicDNS</strong> 两个开关</li>
       </ol>
     </div>
 
-    <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.12);border-radius:8px;padding:10px 12px;margin-bottom:10px">
-      <div style="font-weight:600;color:#059669;margin-bottom:6px">每次扫描前</div>
-      <ol style="margin:0 0 0 18px;padding:0">
-        <li>确认 Mac 菜单栏 Tailscale 图标显示 <strong>Connected</strong></li>
-        <li>Mac 终端执行以下命令建立隧道：</li>
-      </ol>
-      <div style="display:flex;align-items:center;gap:8px;margin:8px 0">
-        <code id="tailscale-cmd" style="flex:1;background:rgba(0,0,0,0.06);padding:6px 10px;border-radius:4px;font-family:monospace">tailscale serve --bg http://localhost:8080</code>
-        <button onclick="copyTailscaleCmd()" style="padding:6px 12px;border-radius:6px;border:none;background:#4f46e5;color:#fff;font-size:12px;cursor:pointer;white-space:nowrap">📋 复制</button>
-      </div>
-      <div style="margin-bottom:6px">执行成功后，在终端运行 <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px">tailscale status</code> 查看你的设备名。</div>
-      <div style="background:rgba(0,0,0,0.04);padding:8px 10px;border-radius:6px">
-        <div style="font-weight:600;margin-bottom:4px">你的专属访问地址：</div>
-        <code style="background:rgba(0,0,0,0.06);padding:4px 8px;border-radius:4px;display:block">https://&lt;设备名&gt;.&lt;tailnet&gt;.ts.net</code>
-        <div style="margin-top:4px;color:#64748b;font-size:11px">示例：https://macbook-pro.tail4df118.ts.net</div>
-      </div>
-    </div>
-
     <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.12);border-radius:8px;padding:10px 12px;margin-bottom:10px">
-      <div style="font-weight:600;color:#d97706;margin-bottom:6px">iPhone 端操作</div>
+      <div style="font-weight:600;color:#d97706;margin-bottom:6px">手机端操作</div>
       <ol style="margin:0 0 0 18px;padding:0">
-        <li>打开 iPhone 上的 Tailscale App，确认显示 <strong>Connected</strong></li>
-        <li>打开 Safari，输入上面的 HTTPS 地址访问</li>
+        <li>打开手机上的 Tailscale App，确认显示 <strong>Connected</strong></li>
+        <li>扫码或复制上方 HTTPS 地址访问</li>
         <li>首次访问会提示证书信任，点击<strong>继续</strong></li>
         <li>允许摄像头权限，即可开始扫描</li>
       </ol>
@@ -1002,7 +1008,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
     <div style="background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.1);border-radius:8px;padding:8px 12px">
       <div style="font-weight:600;color:#dc2626;margin-bottom:4px">连不上？</div>
       <ul style="margin:0 0 0 18px;padding:0;color:#64748b">
-        <li>确保 Mac 和 iPhone 的 Tailscale 都显示 Connected</li>
+        <li>确保 Mac 和手机的 Tailscale 都显示 Connected</li>
         <li>确保两端登录的是<strong>同一个账号</strong></li>
         <li>管理后台的 HTTPS Certificates 开关必须打开</li>
         <li>地址必须是 <code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px">https://</code> 开头，不是 http://</li>
@@ -1014,7 +1020,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 
 <div id="adb-result" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:8px">
 <div style="font-size:12px;font-weight:600;color:var(--success-color);margin-bottom:4px">无线连接成功</div>
-<div style="font-size:12px;color:var(--text-main)">手机浏览器访问：<span style="font-family:monospace">http://localhost:8080</span></div>
+<div style="font-size:12px;color:var(--text-main)">手机浏览器访问：<span style="font-family:monospace">http://localhost:8093</span></div>
 </div>
 </div>
 
@@ -1052,11 +1058,19 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 <!-- 引擎选择 - 按钮式切换 -->
 <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
 <label style="flex:1;cursor:pointer;min-width:100px">
-<input type="radio" name="ocr-engine" value="ollama" checked onchange="switchOcrProvider()" style="display:none"/>
-<div id="engine-tab-ollama" class="engine-tab active" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
+<input type="radio" name="ocr-engine" value="mlx" checked onchange="switchOcrProvider()" style="display:none"/>
+<div id="engine-tab-mlx" class="engine-tab active" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
 <div style="font-size:24px;margin-bottom:4px">🖥️</div>
+<div style="font-weight:700;font-size:13px">MLX GLM-OCR</div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Apple Silicon · 本地 · 离线</div>
+</div>
+</label>
+<label style="flex:1;cursor:pointer;min-width:100px">
+<input type="radio" name="ocr-engine" value="ollama" onchange="switchOcrProvider()" style="display:none"/>
+<div id="engine-tab-ollama" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
+<div style="font-size:24px;margin-bottom:4px">🧩</div>
 <div style="font-weight:700;font-size:13px">Ollama</div>
-<div style="font-size:11px;color:var(--text-muted);margin-top:2px">本地 · 免费 · 离线</div>
+<div style="font-size:11px;color:var(--text-muted);margin-top:2px">兼容 · 旧本地引擎</div>
 </div>
 </label>
 <label style="flex:1;cursor:pointer;min-width:100px">
@@ -1085,13 +1099,33 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 </label>
 </div>
 <select id="ocr-provider" style="display:none">
+<option value="mlx">MLX GLM-OCR</option>
 <option value="ollama">Ollama</option>
 <option value="baidu">Baidu</option>
 <option value="ocrspace">OCR.space</option>
 <option value="paddle">PaddleOCR</option>
 </select>
+<!-- MLX 配置 -->
+<div id="ocr-mlx" class="ocr-provider-config">
+<div class="form-group">
+<label>Model<div class="label-desc">Hugging Face MLX 模型名称</div></label>
+<input id="mlx-model" type="text" style="width:260px" placeholder="mlx-community/GLM-OCR-8bit"/>
+</div>
+<div class="form-group">
+<label>Max Tokens<div class="label-desc">单次识别最多输出 token 数</div></label>
+<input id="mlx-max-tokens" type="number" min="16" max="1000" step="1" style="width:120px" placeholder="160"/>
+</div>
+<div class="form-group">
+<label>Temperature<div class="label-desc">OCR 建议保持 0，减少随机输出</div></label>
+<input id="mlx-temperature" type="number" min="0" max="1" step="0.1" style="width:120px" placeholder="0"/>
+</div>
+<div class="info-box ai-info">
+<i data-lucide="shield-check"></i>
+<div><strong>本地 MLX：</strong>直接加载 GLM-OCR 8bit 模型，不需要启动 Ollama；首次运行会下载模型。</div>
+</div>
+</div>
 <!-- Ollama 配置 -->
-<div id="ocr-ollama" class="ocr-provider-config">
+<div id="ocr-ollama" class="ocr-provider-config" style="display:none">
 <div class="form-group">
 <label><span data-i18n="admin.lbl.ollama_model">Model</span><div class="label-desc">Ollama 中的视觉模型名称</div></label>
 <input id="ollama-model" type="text" style="width:200px" placeholder="glm-ocr"/>
@@ -1339,7 +1373,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
         // Initialize Lucide icons
         if (typeof lucide !== 'undefined') lucide.createIcons();
         if (window.location.protocol === 'file:') {
-            window.location.replace('http://localhost:8080/admin.html');
+            window.location.replace('http://localhost:8093/admin.html');
         }
 
         var currentConfig = {};
@@ -1468,7 +1502,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
         function resolveApiUrl(url) {
             if (!url.startsWith('/')) return url;
             if (window.location.protocol === 'file:') {
-                return 'http://127.0.0.1:8080' + url;
+                return 'http://127.0.0.1:8093' + url;
             }
             return url;
         }
@@ -1483,7 +1517,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                     label + '网络请求失败: ' + e.message +
                     '；当前页面=' + window.location.href +
                     '；接口=' + requestUrl +
-                    '；请优先打开 http://localhost:8080/admin.html'
+                    '；请优先打开 http://localhost:8093/admin.html'
                 );
             }
 
@@ -1550,10 +1584,14 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 
             // OCR Engine
             const ocr = currentConfig.ocr || {};
-            const provider = ocr.provider || 'ollama';
+            const provider = ocr.provider || 'mlx';
             document.getElementById('ocr-provider').value = provider;
             const radioBtn = document.querySelector(`input[name="ocr-engine"][value="${provider}"]`);
             if (radioBtn) radioBtn.checked = true;
+            const mlx = ocr.mlx || {};
+            document.getElementById('mlx-model').value = mlx.model || 'mlx-community/GLM-OCR-8bit';
+            document.getElementById('mlx-max-tokens').value = mlx.maxTokens || 160;
+            document.getElementById('mlx-temperature').value = mlx.temperature ?? 0;
             const ollama = ocr.ollama || {};
             document.getElementById('ollama-model').value = ollama.model || 'glm-ocr';
             document.getElementById('ollama-keepalive').value = ollama.keepAlive || '10m';
@@ -1585,6 +1623,12 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                 // 先保存当前 OCR 配置
                 const ocrCfg = {
                     provider: document.getElementById('ocr-provider').value,
+                    mlx: {
+                        model: document.getElementById('mlx-model').value || 'mlx-community/GLM-OCR-8bit',
+                        maxTokens: parseInt(document.getElementById('mlx-max-tokens').value || '160', 10),
+                        temperature: parseFloat(document.getElementById('mlx-temperature').value || '0'),
+                        prompt: (currentConfig.ocr && currentConfig.ocr.mlx && currentConfig.ocr.mlx.prompt) || '你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。请确保公司名称、日期等关键信息准确。直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式：'
+                    },
                     ollama: {
                         baseUrl: (currentConfig.ocr && currentConfig.ocr.ollama && currentConfig.ocr.ollama.baseUrl) || 'http://localhost:11434',
                         model: document.getElementById('ollama-model').value || 'glm-ocr',
@@ -1599,7 +1643,10 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                         language: document.getElementById('ocrspace-lang').value
                     },
                     paddle: {
-                        useGpu: document.getElementById('paddle-usegpu').value === 'true'
+                        useGpu: document.getElementById('paddle-usegpu').value === 'true',
+                        ocrVersion: (currentConfig.ocr && currentConfig.ocr.paddle && currentConfig.ocr.paddle.ocrVersion) || 'PP-OCRv6',
+                        textDetectionModelName: (currentConfig.ocr && currentConfig.ocr.paddle && currentConfig.ocr.paddle.textDetectionModelName) || 'PP-OCRv6_tiny_det',
+                        textRecognitionModelName: (currentConfig.ocr && currentConfig.ocr.paddle && currentConfig.ocr.paddle.textRecognitionModelName) || 'PP-OCRv6_tiny_rec'
                     }
                 };
                 currentConfig.ocr = ocrCfg;
@@ -1855,6 +1902,12 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                 },
                 ocr: {
                     provider: document.getElementById('ocr-provider').value,
+                    mlx: {
+                        model: document.getElementById('mlx-model').value || 'mlx-community/GLM-OCR-8bit',
+                        maxTokens: parseInt(document.getElementById('mlx-max-tokens').value || '160', 10),
+                        temperature: parseFloat(document.getElementById('mlx-temperature').value || '0'),
+                        prompt: (currentConfig.ocr && currentConfig.ocr.mlx && currentConfig.ocr.mlx.prompt) || '你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。请确保公司名称、日期等关键信息准确。直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式：'
+                    },
                     ollama: {
                         baseUrl: (currentConfig.ocr && currentConfig.ocr.ollama && currentConfig.ocr.ollama.baseUrl) || 'http://localhost:11434',
                         model: document.getElementById('ollama-model').value || 'glm-ocr',
@@ -1869,7 +1922,10 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                         language: document.getElementById('ocrspace-lang').value
                     },
                     paddle: {
-                        useGpu: document.getElementById('paddle-usegpu').value === 'true'
+                        useGpu: document.getElementById('paddle-usegpu').value === 'true',
+                        ocrVersion: (currentConfig.ocr && currentConfig.ocr.paddle && currentConfig.ocr.paddle.ocrVersion) || 'PP-OCRv6',
+                        textDetectionModelName: (currentConfig.ocr && currentConfig.ocr.paddle && currentConfig.ocr.paddle.textDetectionModelName) || 'PP-OCRv6_tiny_det',
+                        textRecognitionModelName: (currentConfig.ocr && currentConfig.ocr.paddle && currentConfig.ocr.paddle.textRecognitionModelName) || 'PP-OCRv6_tiny_rec'
                     }
                 }
             };
@@ -2352,7 +2408,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                 const statusEl = document.getElementById('model-status');
                 const engineEl = document.getElementById('ai-engine');
 
-                const providerNames = {ollama: 'GLM-OCR', baidu: '百度 OCR', ocrspace: 'OCR.space', openai: 'OpenAI', paddle: 'PaddleOCR'};
+                const providerNames = {mlx: 'MLX GLM-OCR', ollama: 'Ollama GLM-OCR', baidu: '百度 OCR', ocrspace: 'OCR.space', openai: 'OpenAI', paddle: 'PaddleOCR'};
                 engineEl.textContent = providerNames[data.provider] || data.provider;
 
                 if (data.provider === 'ollama') {
@@ -2787,19 +2843,115 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
             const isOpen = content.style.display === 'block';
             content.style.display = isOpen ? 'none' : 'block';
             chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+            if (!isOpen) checkTailscaleStatus();
         }
 
-        function copyTailscaleCmd() {
-            const cmd = document.getElementById('tailscale-cmd').innerText;
-            navigator.clipboard.writeText(cmd).then(function() {
-                const feedback = document.getElementById('ios-copy-feedback');
+        function renderTailscaleState(data) {
+            const statusEl = document.getElementById('tailscale-status');
+            const urlEl = document.getElementById('tailscale-url');
+            const qrEl = document.getElementById('tailscale-qr');
+            const startBtn = document.getElementById('tailscale-start-btn');
+            const url = data && data.url;
+
+            if (urlEl) urlEl.textContent = url || '点击“一键启用”后生成';
+            if (qrEl) {
+                if (url) {
+                    qrEl.src = '/api/qr-code?data=' + encodeURIComponent(url);
+                    qrEl.style.display = 'block';
+                } else {
+                    qrEl.style.display = 'none';
+                }
+            }
+
+            if (!statusEl) return;
+            if (!data || data.installed === false) {
+                statusEl.textContent = (data && data.message) || '未检测到 Tailscale';
+                statusEl.style.color = '#dc2626';
+            } else if (!data.connected) {
+                statusEl.textContent = data.message || 'Tailscale 未连接';
+                statusEl.style.color = '#d97706';
+            } else if (!data.serve_running) {
+                statusEl.textContent = data.message || '已连接，未启用扫描地址';
+                statusEl.style.color = '#d97706';
+            } else {
+                statusEl.textContent = data.message || '已就绪';
+                statusEl.style.color = '#059669';
+            }
+
+            if (startBtn) {
+                startBtn.textContent = data && data.serve_running ? '重新启用' : '一键启用';
+                startBtn.disabled = false;
+            }
+        }
+
+        async function checkTailscaleStatus() {
+            const statusEl = document.getElementById('tailscale-status');
+            if (statusEl) {
+                statusEl.textContent = '检测中...';
+                statusEl.style.color = '#64748b';
+            }
+            try {
+                const data = await fetchJsonOrThrow('/api/tailscale-status?t=' + Date.now(), 'Tailscale 状态');
+                renderTailscaleState(data);
+                return data;
+            } catch (e) {
+                renderTailscaleState({ installed: false, message: e.message });
+                return null;
+            }
+        }
+
+        async function startTailscaleServe() {
+            const btn = document.getElementById('tailscale-start-btn');
+            const statusEl = document.getElementById('tailscale-status');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '启用中...';
+            }
+            if (statusEl) {
+                statusEl.textContent = '正在启用 Tailscale HTTPS 地址...';
+                statusEl.style.color = '#64748b';
+            }
+            try {
+                const res = await fetch('/api/tailscale-serve-start', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.status === 'error') {
+                    throw new Error(data.message || '启用失败');
+                }
+                renderTailscaleState(data);
+                showStatus('✅ Tailscale 手机访问地址已启用', 'green');
+            } catch (e) {
+                renderTailscaleState({ installed: true, connected: false, message: e.message });
+                showStatus('❌ Tailscale 启用失败: ' + e.message, 'red');
+            }
+        }
+
+        async function copyTailscaleUrl() {
+            const url = document.getElementById('tailscale-url')?.innerText || '';
+            if (!url.startsWith('https://')) {
+                showStatus('⚠️ 请先点击「一键启用」生成 Tailscale 地址', 'red');
+                return;
+            }
+            await navigator.clipboard.writeText(url);
+            const feedback = document.getElementById('ios-copy-feedback');
+            if (feedback) {
                 feedback.style.opacity = '1';
                 setTimeout(function() { feedback.style.opacity = '0'; }, 1500);
-            });
+            }
+            showStatus('✅ 已复制 Tailscale 手机访问地址', 'green');
+        }
+
+        function openTailscaleUrl() {
+            const url = document.getElementById('tailscale-url')?.innerText || '';
+            if (!url.startsWith('https://')) {
+                showStatus('⚠️ 请先点击「一键启用」生成 Tailscale 地址', 'red');
+                return;
+            }
+            window.open(url, '_blank');
         }
 
         loadConfig();
         loadLanAccess();
+        checkTailscaleStatus();
     </script>
 </body>
 </html>

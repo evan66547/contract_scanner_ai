@@ -44,27 +44,36 @@ def _test_image_b64() -> str:
 
 
 async def check_glm_ocr(image_b64: str):
-    print("\n=== GLM OCR via Ollama ===")
+    print("\n=== GLM OCR local provider ===")
 
     import aiohttp
     from ocr import OcrRuntime
 
     async with aiohttp.ClientSession() as session:
         rt = OcrRuntime(os.path.join(ROOT, "config.json"), session)
-        cfg = rt.get_config().get("ocr", {}).get("ollama", {})
-        model = cfg.get("model", "glm-ocr")
-        base_url = cfg.get("baseUrl", "http://localhost:11434").rstrip("/")
+        ocr_cfg = rt.get_config().get("ocr", {})
+        provider = ocr_cfg.get("provider", "mlx")
+        if provider == "ollama":
+            cfg = ocr_cfg.get("ollama", {})
+            model = cfg.get("model", "glm-ocr")
+            base_url = cfg.get("baseUrl", "http://localhost:11434").rstrip("/")
 
-        try:
-            async with session.get(f"{base_url}/api/tags", timeout=3) as resp:
-                _result("Ollama tags reachable", resp.status == 200, f"status={resp.status}")
-        except Exception as e:
-            _result("Ollama tags reachable", False, str(e))
-            await rt.close()
-            return
+            try:
+                async with session.get(f"{base_url}/api/tags", timeout=3) as resp:
+                    _result("Ollama tags reachable", resp.status == 200, f"status={resp.status}")
+            except Exception as e:
+                _result("Ollama tags reachable", False, str(e))
+                await rt.close()
+                return
 
-        started = time.time()
-        text = await rt.recognize_ollama(image_b64, cfg)
+            started = time.time()
+            text = await rt.recognize_ollama(image_b64, cfg)
+        else:
+            cfg = ocr_cfg.get("mlx", {})
+            model = cfg.get("model", "mlx-community/GLM-OCR-8bit")
+
+            started = time.time()
+            text = await rt.recognize_mlx(image_b64, cfg)
         elapsed_ms = int((time.time() - started) * 1000)
         normalized = "".join(text.split())
         _result(

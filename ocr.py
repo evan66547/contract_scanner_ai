@@ -6,11 +6,15 @@
 """
 
 import asyncio
+import base64
+import binascii
 import concurrent.futures
 import json
 import logging
 import os
+import platform
 import re
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -116,6 +120,10 @@ class OcrRuntime:
         self._baidu_token_cache = {"token": None, "expires": 0}
         self._baidu_limiter = TokenBucketRateLimiter(rate=2.0, per=1.0)
         self._paddle_ocr_instance = None
+        self._mlx_model = None
+        self._mlx_processor = None
+        self._mlx_config = None
+        self._mlx_model_name = None
         # Keep single worker to match existing server.py behavior.
         self._ocr_executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="ocr"
@@ -130,6 +138,10 @@ class OcrRuntime:
             self._ocr_executor.shutdown(wait=False)
             self._ocr_executor = None
         self._paddle_ocr_instance = None
+        self._mlx_model = None
+        self._mlx_processor = None
+        self._mlx_config = None
+        self._mlx_model_name = None
         self.http_session = None
 
     def get_config(self) -> dict:
@@ -183,7 +195,13 @@ class OcrRuntime:
         if "ocr" not in cfg:
             old_model = cfg.pop("ollamaModel", "glm-ocr")
             cfg["ocr"] = {
-                "provider": "ollama",
+                "provider": "mlx",
+                "mlx": {
+                    "model": "mlx-community/GLM-OCR-8bit",
+                    "maxTokens": 160,
+                    "temperature": 0.0,
+                    "prompt": self._default_ocr_prompt(),
+                },
                 "ollama": {
                     "baseUrl": "http://localhost:11434",
                     "model": old_model,
@@ -202,8 +220,30 @@ class OcrRuntime:
         return cfg
 
     @staticmethod
-    def _ensure_forward_compat(cfg: dict) -> dict:
+    def _default_ocr_prompt() -> str:
+        return (
+            "你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。"
+            "如果是复印件，请忽略背景噪点、模糊的印章和阴影。"
+            "请确保公司名称、日期等关键信息准确。"
+            "直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式："
+        )
+
+    @classmethod
+    def _ensure_forward_compat(cls, cfg: dict) -> dict:
         """确保新 provider 配置块存在（向前兼容）"""
+        ocr_cfg = cfg.setdefault("ocr", {})
+        if "mlx" not in ocr_cfg:
+            ocr_cfg["mlx"] = {
+                "model": "mlx-community/GLM-OCR-8bit",
+                "maxTokens": 160,
+                "temperature": 0.0,
+                "prompt": cls._default_ocr_prompt(),
+            }
+        mlx_cfg = ocr_cfg["mlx"]
+        mlx_cfg.setdefault("model", "mlx-community/GLM-OCR-8bit")
+        mlx_cfg.setdefault("maxTokens", 160)
+        mlx_cfg.setdefault("temperature", 0.0)
+        mlx_cfg.setdefault("prompt", cls._default_ocr_prompt())
         if "ocrspace" not in cfg.get("ocr", {}):
             cfg["ocr"]["ocrspace"] = {"apiKey": "", "language": "chs"}
         if "paddle" not in cfg.get("ocr", {}):
@@ -409,6 +449,129 @@ class OcrRuntime:
         except Exception as e:
             return f"[PaddleOCR Error: {str(e)}]"
 
+    def _get_mlx_model(self, model_name: str):
+        """Load and cache the MLX VLM model inside the single OCR worker."""
+        if platform.system() != "Darwin" or platform.machine() != "arm64":
+            raise RuntimeError("MLX 需要 Apple Silicon Mac")
+
+        if self._mlx_model is not None and self._mlx_model_name == model_name:
+            return self._mlx_model, self._mlx_processor, self._mlx_config
+
+        try:
+            from mlx_vlm import load
+            from mlx_vlm.utils import load_config
+        except ImportError as e:
+            missing = e.name or "mlx-vlm"
+            raise ImportError(f"缺少依赖 {missing}，请在项目虚拟环境中安装 mlx-vlm") from e
+
+        model, processor = load(model_name)
+        try:
+            config = load_config(model_name)
+        except Exception:
+            config = None
+
+        self._mlx_model = model
+        self._mlx_processor = processor
+        self._mlx_config = config
+        self._mlx_model_name = model_name
+        return model, processor, config
+
+    @staticmethod
+    def is_mlx_model_cached(model_name: str) -> bool:
+        """Return True only when the large MLX weight file is already cached."""
+        model_path = Path(model_name).expanduser()
+        if model_path.is_file():
+            return model_path.name == "model.safetensors" and model_path.stat().st_size > 0
+        if model_path.is_dir():
+            weights = model_path / "model.safetensors"
+            return weights.exists() and weights.stat().st_size > 0
+
+        try:
+            from huggingface_hub import try_to_load_from_cache
+            from huggingface_hub.constants import _CACHED_NO_EXIST
+        except Exception:
+            return False
+
+        cached = try_to_load_from_cache(model_name, "model.safetensors")
+        return bool(cached and cached is not _CACHED_NO_EXIST and os.path.exists(cached))
+
+    @staticmethod
+    def _apply_mlx_prompt(processor, config, prompt: str) -> str:
+        try:
+            from mlx_vlm.prompt_utils import apply_chat_template
+            return apply_chat_template(processor, config, prompt, num_images=1)
+        except Exception:
+            tokenizer = getattr(processor, "tokenizer", None)
+            if tokenizer is not None and hasattr(tokenizer, "apply_chat_template"):
+                messages = [{
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": prompt},
+                    ],
+                }]
+                return tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+            return prompt
+
+    async def _mlx(self, image_b64: str, mlx_cfg: dict) -> str:
+        """MLX provider for mlx-community/GLM-OCR-8bit."""
+        model_name = mlx_cfg.get("model", "mlx-community/GLM-OCR-8bit")
+        max_tokens = int(mlx_cfg.get("maxTokens", 160))
+        temperature = float(mlx_cfg.get("temperature", 0.0))
+        prompt = mlx_cfg.get("prompt") or self._default_ocr_prompt()
+
+        tmp_path = ""
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+                f.write(base64.b64decode(image_b64))
+                tmp_path = f.name
+
+            loop = asyncio.get_running_loop()
+
+            def _run_mlx():
+                from mlx_vlm import generate
+
+                model, processor, config = self._get_mlx_model(model_name)
+                formatted_prompt = self._apply_mlx_prompt(processor, config, prompt)
+                try:
+                    output = generate(
+                        model,
+                        processor,
+                        formatted_prompt,
+                        [tmp_path],
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        verbose=False,
+                    )
+                except TypeError:
+                    output = generate(
+                        model,
+                        processor,
+                        image=tmp_path,
+                        prompt=formatted_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        verbose=False,
+                    )
+                text = getattr(output, "text", output)
+                return clean_ollama_ocr_text(str(text))
+
+            return await loop.run_in_executor(self._ocr_executor, _run_mlx)
+        except ImportError as e:
+            return f"[MLX Error: {str(e)}]"
+        except binascii.Error:
+            return "[MLX Error: 图像解码失败]"
+        except Exception as e:
+            return f"[MLX Error: {str(e)}]"
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
     async def _ollama(self, image_b64: str, ollama_cfg: dict) -> str:
         """Ollama provider（从 server.call_ollama 迁移）"""
         base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
@@ -483,6 +646,10 @@ class OcrRuntime:
         if (e := self._check_alive()): return e
         return await self._paddle(image_b64)
 
+    async def recognize_mlx(self, image_b64: str, mlx_cfg: dict) -> str:
+        if (e := self._check_alive()): return e
+        return await self._mlx(image_b64, mlx_cfg)
+
     # ── OCR 调度（Phase 2） ──
 
     async def recognize_text(self, image_b64: str) -> str:
@@ -492,7 +659,19 @@ class OcrRuntime:
 
         cfg = self.get_config()
         provider = cfg["ocr"].get("provider", "ollama")
-        if provider == "baidu":
+        if provider == "mlx":
+            mlx_cfg = cfg["ocr"].get("mlx", {})
+            model_name = mlx_cfg.get("model", "mlx-community/GLM-OCR-8bit")
+            uses_builtin_mlx = getattr(self._mlx, "__func__", None) is OcrRuntime._mlx
+            if uses_builtin_mlx and not self.is_mlx_model_cached(model_name):
+                logger.warning("MLX GLM-OCR model weights are not fully cached; falling back to PaddleOCR")
+                return await self._paddle(image_b64)
+            text = await self._mlx(image_b64, mlx_cfg)
+            if text.startswith("[MLX Error:") and "No Metal device available" in text:
+                logger.warning("MLX GLM-OCR unavailable because Metal device is not accessible; falling back to PaddleOCR")
+                return await self._paddle(image_b64)
+            return text
+        elif provider == "baidu":
             return await self._baidu(image_b64, cfg["ocr"]["baidu"])
         elif provider == "ocrspace":
             return await self._ocrspace(image_b64, cfg["ocr"].get("ocrspace", {}))

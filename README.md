@@ -3,7 +3,7 @@
 [![license](https://img.shields.io/badge/license-Personal_Use-important.svg)](https://github.com/evan66547/contract_scanner_ai/blob/main/LICENSE)
 [![python](https://img.shields.io/badge/python-3.10~3.12-yellow.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-black.svg)](https://ollama.com/)
+[![MLX](https://img.shields.io/badge/MLX-Local_GLM--OCR-black.svg)](https://github.com/ml-explore/mlx)
 
 [English](#english) | [中文](#chinese)
 
@@ -26,7 +26,7 @@
 ### ✨ Key Technical Features
 
 - **🧠 Multi-Engine OCR Backend (FastAPI)**
-  - Seamlessly switch between **Ollama (Local GLM-OCR)**, **Baidu Cloud OCR**, **PaddleOCR (Offline)**, and **OCR.Space**.
+  - Seamlessly switch between **MLX (Local GLM-OCR 8bit)**, **Ollama (Legacy Local GLM-OCR)**, **Baidu Cloud OCR**, **PaddleOCR (Offline)**, and **OCR.Space**.
   - Baidu OCR: 6-API automatic fallback chain — when one API's free quota is exhausted, it automatically switches to the next available endpoint.
   - Built-in VRAM protection: Auto-warms up local models, strictly limits concurrent Ollama inferences to prevent Out-Of-Memory crashes, and multiplexes WebSockets.
 - **⚡ Real-Time WebSocket Streaming**
@@ -39,7 +39,7 @@
   - Modern `admin.html` control panel. Drag-and-drop Excel/CSV files for auto-mapping target columns.
   - Live configuration editor (adjust scan intervals, matching confidence, OCR engine, and model selection) without restarting the server.
 - **📱 Automated ADB Integration**
-  - "Open on Phone" button triggers `adb reverse tcp:8080 tcp:8080` and automatically launches the intent on connected Android devices for true offline usability.
+  - "Open on Phone" button triggers `adb reverse tcp:8093 tcp:8093` and automatically launches the intent on connected Android devices for true offline usability.
 - **🍎 Zero-Config iOS Support**
   - iPhone/iPad scanning via **Tailscale HTTPS tunnel** — no ADB, no LAN required. The admin panel includes a collapsible guidance card with one-click copy for the `tailscale serve` command.
 
@@ -47,7 +47,9 @@
 
 **1. Prerequisites**
 - [Python 3.10-3.12](https://www.python.org/downloads/) installed. (PaddleOCR requires Python <=3.12)
-- (Optional) [Ollama](https://ollama.com/) for local AI OCR: `ollama run glm-ocr`
+- Apple Silicon Mac for the default local MLX GLM-OCR engine.
+- The first MLX run downloads `mlx-community/GLM-OCR-8bit` locally.
+- (Optional legacy path) [Ollama](https://ollama.com/) for the old local AI OCR mode: `ollama run glm-ocr`
 
 **2. Run the Server**
 ```bash
@@ -65,14 +67,14 @@ make live-check
 This verifies local GLM-OCR, PaddleOCR, and the same-Wi-Fi scanner URL before testing on a phone.
 
 **3. Usage**
-- Open **Admin Panel** on PC: `http://localhost:8080/admin.html`
+- Open **Admin Panel** on PC: `http://localhost:8093/admin.html`
 - **Open Scanner on Mobile (Two Ways):**
   - **Wireless Connection:** Connect your phone to the same Wi-Fi network as your PC and use the `Same Wi-Fi Scanner` URL printed by `bash run.sh`, or scan the QR code in the Admin Panel.
   - **Wired (USB) Connection:** Connect via USB and click "Open on Phone" in the admin panel to auto-launch via ADB.
   - **iOS (iPhone/iPad) via Tailscale:**
     1. Install [Tailscale](https://tailscale.com/download) on both Mac and iPhone, log in with the same account
     2. Enable **HTTPS Certificates** and **MagicDNS** in [Tailscale admin console](https://login.tailscale.com/admin/dns)
-    3. Run on Mac: `tailscale serve --bg http://localhost:8080`
+    3. Run on Mac: `tailscale serve --bg http://localhost:8093`
     4. Open Safari on iPhone and visit `https://<machine>.<tailnet>.ts.net`
     5. Allow camera permission when prompted
 
@@ -88,7 +90,7 @@ This verifies local GLM-OCR, PaddleOCR, and the same-Wi-Fi scanner URL before te
 ### ✨ 核心技术架构
 
 - **🧠 多引擎 OCR 后端 (基于 FastAPI)**
-  - 支持热切换 4 种底层引擎：**Ollama (本地 GLM-OCR 等)**、**百度智能云 OCR**、**PaddleOCR (纯离线)**、以及 **OCR.Space**。
+  - 支持热切换多种底层引擎：**MLX (本地 GLM-OCR 8bit)**、**Ollama (旧版本地 GLM-OCR)**、**百度智能云 OCR**、**PaddleOCR (纯离线)**、以及 **OCR.Space**。
   - 百度 OCR 内置 6 个 API 自动降级链：单个接口免费额度用尽时，自动切换到下一个可用接口，最大化利用免费资源。
   - **显存保护机制**：服务器启动时自动侦测并预热本地模型；针对 Ollama 引擎严格实施 `Semaphore(1)` 并发控制，完美杜绝 VRAM 溢出导致的进程崩溃。
 - **⚡ WebSocket 实时推流识别**
@@ -109,7 +111,8 @@ This verifies local GLM-OCR, PaddleOCR, and the same-Wi-Fi scanner URL before te
 
 **1. 前置环境**
 - 安装 [Python 3.10-3.12](https://www.python.org/downloads/)（PaddleOCR 不兼容 3.13+）
-- (可选) 安装 [Ollama](https://ollama.com/) 用于本地 AI OCR：`ollama run glm-ocr`
+- 默认本地 GLM-OCR 需要 Apple Silicon Mac，首次运行会下载 `mlx-community/GLM-OCR-8bit`
+- （可选旧路径）安装 [Ollama](https://ollama.com/) 用于旧版本地 AI OCR：`ollama run glm-ocr`
 
 **2. 启动服务**
 ```bash
@@ -127,14 +130,14 @@ make live-check
 该命令会验证本机 GLM-OCR、PaddleOCR、以及同 Wi-Fi 手机访问地址是否可用。
 
 **3. 如何使用**
-- 在电脑端打开**管理台**: `http://localhost:8080/admin.html`，可拖入 Excel 导入你的目标名单。
+- 在电脑端打开**管理台**: `http://localhost:8093/admin.html`，可拖入 Excel 导入你的目标名单。
 - **在手机端打开扫描器 (两种方式)**: 
   - **无线连接 (推荐)**: 确保手机和电脑连接在同一局域网 (Wi-Fi)，使用 `bash run.sh` 打印的 `Same Wi-Fi Scanner` 地址，或在管理台扫描二维码打开。
   - **有线连接 (ADB)**: 在安卓手机插线后，直接点击管理台中右上角的“在手机上打开”按钮。
   - **iOS (iPhone/iPad) 通过 Tailscale**: 
     1. Mac 与 iPhone 安装 [Tailscale](https://tailscale.com/download) 并登录**同一账号**
     2. Tailscale [管理后台](https://login.tailscale.com/admin/dns) 启用 **HTTPS Certificates** 与 **MagicDNS**
-    3. Mac 终端运行：`tailscale serve --bg http://localhost:8080`
+    3. Mac 终端运行：`tailscale serve --bg http://localhost:8093`
     4. iPhone Safari 访问 `https://<设备名>.<tailnet>.ts.net`
     5. 允许摄像头权限后即可扫描
 

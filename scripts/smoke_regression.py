@@ -210,6 +210,7 @@ async def test_ocr_runtime_lifecycle():
         ("recognize_ollama", lambda: rt.recognize_ollama("abc", {})),
         ("recognize_baidu", lambda: rt.recognize_baidu("abc", {})),
         ("recognize_paddle", lambda: rt.recognize_paddle("abc")),
+        ("recognize_mlx", lambda: rt.recognize_mlx("abc", {})),
     ]:
         try:
             result = await coro_fn()
@@ -259,6 +260,13 @@ async def test_paddle_fallback():
 
     rt._paddle_ocr_instance = FakePaddle()
 
+    fake_np = types.SimpleNamespace(uint8="uint8", frombuffer=lambda data, dtype: data)
+    fake_cv2 = types.SimpleNamespace(IMREAD_COLOR=1, imdecode=lambda data, flags: object())
+    old_np = sys.modules.get("numpy")
+    old_cv2 = sys.modules.get("cv2")
+    sys.modules["numpy"] = fake_np
+    sys.modules["cv2"] = fake_cv2
+
     # Use PIL to generate a valid JPEG that OpenCV can decode
     import base64
     try:
@@ -273,27 +281,44 @@ async def test_paddle_fallback():
         _result("recognize_paddle public works", False, "PIL not available")
         await rt.close()
         await session.close()
+        if old_np is None:
+            sys.modules.pop("numpy", None)
+        else:
+            sys.modules["numpy"] = old_np
+        if old_cv2 is None:
+            sys.modules.pop("cv2", None)
+        else:
+            sys.modules["cv2"] = old_cv2
         return
 
-    result = await rt._paddle(img_b64)
-    has_fallback = "fallback text" in result
-    _result(
-        "paddle ocr() fallback works",
-        has_fallback,
-        f"got: {result[:80]}" if not has_fallback else "",
-    )
+    try:
+        result = await rt._paddle(img_b64)
+        has_fallback = "fallback text" in result
+        _result(
+            "paddle ocr() fallback works",
+            has_fallback,
+            f"got: {result[:80]}" if not has_fallback else "",
+        )
 
-    # Also test that recognize_paddle (public) works
-    result2 = await rt.recognize_paddle(img_b64)
-    has_fallback2 = "fallback text" in result2
-    _result(
-        "recognize_paddle public works",
-        has_fallback2,
-        f"got: {result2[:80]}" if not has_fallback2 else "",
-    )
-
-    await rt.close()
-    await session.close()
+        # Also test that recognize_paddle (public) works
+        result2 = await rt.recognize_paddle(img_b64)
+        has_fallback2 = "fallback text" in result2
+        _result(
+            "recognize_paddle public works",
+            has_fallback2,
+            f"got: {result2[:80]}" if not has_fallback2 else "",
+        )
+    finally:
+        await rt.close()
+        await session.close()
+        if old_np is None:
+            sys.modules.pop("numpy", None)
+        else:
+            sys.modules["numpy"] = old_np
+        if old_cv2 is None:
+            sys.modules.pop("cv2", None)
+        else:
+            sys.modules["cv2"] = old_cv2
 
 
 # ───────────────────────────────────────
@@ -421,6 +446,84 @@ def test_ollama_cleanup():
 
 
 # ───────────────────────────────────────
+# 6) MLX provider config and dispatch compatibility
+# ───────────────────────────────────────
+
+async def test_mlx_provider_config_and_dispatch():
+    print("\n=== 6) MLX provider config and dispatch compatibility ===")
+
+    from ocr import OcrRuntime
+    import aiohttp
+
+    tmpdir = tempfile.mkdtemp()
+    cfg_path = os.path.join(tmpdir, "config.json")
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "ocr": {
+                "provider": "mlx",
+                "ollama": {
+                    "baseUrl": "http://localhost:11434",
+                    "model": "glm-ocr",
+                    "keepAlive": "10m",
+                },
+                "baidu": {"apiKey": "", "secretKey": ""},
+                "ocrspace": {"apiKey": "", "language": "chs"},
+                "openai": {
+                    "apiKey": "",
+                    "model": "gpt-4o-mini",
+                    "baseUrl": "https://api.openai.com/v1",
+                },
+                "paddle": {"useGpu": False},
+            }
+        }, f)
+
+    session = aiohttp.ClientSession()
+    rt = OcrRuntime(cfg_path, session)
+    try:
+        cfg = rt.get_config()
+        mlx_cfg = cfg.get("ocr", {}).get("mlx", {})
+        _result(
+            "adds mlx default model",
+            mlx_cfg.get("model") == "mlx-community/GLM-OCR-8bit",
+            f"got: {mlx_cfg}",
+        )
+        _result(
+            "keeps ollama compatibility block",
+            cfg.get("ocr", {}).get("ollama", {}).get("model") == "glm-ocr",
+            f"got: {cfg.get('ocr', {}).get('ollama')}",
+        )
+
+        async def fake_mlx(image_b64, runtime_cfg):
+            return f"mlx:{runtime_cfg.get('model')}:{image_b64}"
+
+        async def fake_ollama(image_b64, runtime_cfg):
+            return f"ollama:{runtime_cfg.get('model')}:{image_b64}"
+
+        rt._mlx = fake_mlx
+        rt._ollama = fake_ollama
+        text = await rt.recognize_text("img")
+        _result(
+            "dispatches mlx provider",
+            text == "mlx:mlx-community/GLM-OCR-8bit:img",
+            f"got: {text}",
+        )
+
+        cfg["ocr"]["provider"] = "ollama"
+        rt._config_cache = cfg
+        text = await rt.recognize_text("img")
+        _result(
+            "ollama provider still dispatches",
+            text == "ollama:glm-ocr:img",
+            f"got: {text}",
+        )
+    finally:
+        await rt.close()
+        await session.close()
+        os.unlink(cfg_path)
+        os.rmdir(tmpdir)
+
+
+# ───────────────────────────────────────
 
 def main():
     print("smoke_regression.py — contract_scanner_ai")
@@ -434,6 +537,7 @@ def main():
     asyncio.run(test_paddle_fallback())
     asyncio.run(test_paddle_v6_tiny_init())
     test_ollama_cleanup()
+    asyncio.run(test_mlx_provider_config_and_dispatch())
 
     # Summary
     total = passed + failed

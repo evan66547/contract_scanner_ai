@@ -4,6 +4,7 @@ import base64
 import asyncio
 import hashlib
 import hmac
+import importlib.util
 import time
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -26,7 +27,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 # === 服务配置 ===
-SERVER_PORT = int(os.environ.get('PORT', os.environ.get('SERVER_PORT', 8080)))
+SERVER_PORT = int(os.environ.get('PORT', os.environ.get('SERVER_PORT', 8093)))
 DEBUG_WS = os.environ.get("DEBUG_WS", "0") == "1"
 
 # === 全局 aiohttp Session（复用连接池，避免每次请求创建新连接） ===
@@ -82,11 +83,15 @@ async def lifespan(app: FastAPI):
     logger.info("🔚 aiohttp Session 已关闭")
 
 async def warmup_model():
-    """启动后异步预热模型（仅 Ollama 引擎，不抢占其他模型显存）"""
+    """启动后异步预热当前本地模型。"""
     try:
         cfg = get_ocr_config()
-        if cfg["ocr"].get("provider", "ollama") != "ollama":
-            logger.info("⏭️ 当前非 Ollama 引擎，跳过预热")
+        provider = cfg["ocr"].get("provider", "mlx")
+        if provider == "mlx":
+            logger.info("⏭️ MLX GLM-OCR 跳过启动预热；首次扫描时尝试加载，失败则自动降级到 PaddleOCR")
+            return
+        if provider != "ollama":
+            logger.info("⏭️ 当前非本地大模型引擎，跳过预热")
             return
         ollama_cfg = cfg["ocr"].get("ollama", {})
         base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
@@ -121,6 +126,30 @@ async def warmup_model():
                 logger.warning(f"⚠️ 模型预热失败: HTTP {resp.status}")
     except Exception as e:
         logger.warning(f"⚠️ 模型预热异常: {e}")
+
+def _mlx_runtime_status(model_name: str = "mlx-community/GLM-OCR-8bit") -> tuple[bool, str]:
+    if not importlib.util.find_spec("mlx_vlm"):
+        return False, "未安装 mlx-vlm"
+    if not OcrRuntime.is_mlx_model_cached(model_name):
+        return False, f"模型权重未完整下载: {model_name}"
+    try:
+        import mlx.core as mx
+        mx.metal.device_info()
+        return True, "ready"
+    except Exception as e:
+        return False, str(e)
+
+def _warmup_image_b64() -> str:
+    """1x1 white JPEG for local model warmup."""
+    return (
+        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////"
+        "////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////"
+        "////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/"
+        "xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAGf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/"
+        "aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/"
+        "aAAgBAQABPyF//9oADAMBAAIAAwAAABCf/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPxB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/"
+        "aAAgBAgEBPxB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxB//9k="
+    )
 
 app = FastAPI(title="Contract Scanner AI", lifespan=lifespan)
 
@@ -283,7 +312,13 @@ def get_ocr_config():
     if "ocr" not in cfg:
         old_model = cfg.pop("ollamaModel", "glm-ocr")
         cfg["ocr"] = {
-            "provider": "ollama",
+            "provider": "mlx",
+            "mlx": {
+                "model": "mlx-community/GLM-OCR-8bit",
+                "maxTokens": 160,
+                "temperature": 0.0,
+                "prompt": OcrRuntime._default_ocr_prompt(),
+            },
             "ollama": {"baseUrl": "http://localhost:11434", "model": old_model, "keepAlive": "10m"},
             "baidu": {"apiKey": "", "secretKey": ""},
             "ocrspace": {"apiKey": "", "language": "chs"},
@@ -291,6 +326,14 @@ def get_ocr_config():
             "paddle": {"useGpu": False}
         }
         save_json(CONFIG_FILE, cfg)
+    ocr_cfg = cfg.setdefault("ocr", {})
+    if "mlx" not in ocr_cfg:
+        ocr_cfg["mlx"] = {
+            "model": "mlx-community/GLM-OCR-8bit",
+            "maxTokens": 160,
+            "temperature": 0.0,
+            "prompt": OcrRuntime._default_ocr_prompt(),
+        }
     if "ocrspace" not in cfg.get("ocr", {}):
         cfg["ocr"]["ocrspace"] = {"apiKey": "", "language": "chs"}
     if "paddle" not in cfg.get("ocr", {}):
@@ -320,8 +363,10 @@ async def dispatch_ocr(base64_img: str) -> str:
         return await _ocr_runtime.recognize_text(base64_img)
     # 降级：无 OcrRuntime 时保留原逻辑
     cfg = get_ocr_config()
-    provider = cfg["ocr"].get("provider", "ollama")
-    if provider == "baidu":
+    provider = cfg["ocr"].get("provider", "mlx")
+    if provider == "mlx":
+        return await call_mlx(base64_img, cfg["ocr"].get("mlx", {}))
+    elif provider == "baidu":
         return await call_baidu(base64_img, cfg["ocr"]["baidu"])
     elif provider == "ocrspace":
         return await call_ocrspace(base64_img, cfg["ocr"].get("ocrspace", {}))
@@ -337,6 +382,12 @@ async def call_ollama(base64_img: str, ollama_cfg: dict = None) -> str:
         cfg = get_ocr_config()
         ollama_cfg = cfg["ocr"].get("ollama", {})
     return await _runtime_for_ocr().recognize_ollama(base64_img, ollama_cfg)
+
+async def call_mlx(base64_img: str, mlx_cfg: dict = None) -> str:
+    if mlx_cfg is None:
+        cfg = get_ocr_config()
+        mlx_cfg = cfg["ocr"].get("mlx", {})
+    return await _runtime_for_ocr().recognize_mlx(base64_img, mlx_cfg)
 
 async def call_baidu(base64_img: str, baidu_cfg: dict) -> str:
     return await _runtime_for_ocr().recognize_baidu(base64_img, baidu_cfg)
@@ -401,11 +452,20 @@ async def call_paddle(base64_img: str) -> str:
 async def ocr_test():
     """测试当前 OCR 引擎连通性"""
     cfg = get_ocr_config()
-    provider = cfg["ocr"].get("provider", "ollama")
+    provider = cfg["ocr"].get("provider", "mlx")
     result = {"provider": provider, "ok": False, "message": ""}
 
     try:
-        if provider == "ollama":
+        if provider == "mlx":
+            mlx_cfg = cfg["ocr"].get("mlx", {})
+            model_name = mlx_cfg.get("model", "mlx-community/GLM-OCR-8bit")
+            mlx_ready, mlx_message = _mlx_runtime_status(model_name)
+            if mlx_ready:
+                result["ok"] = True
+                result["message"] = f"MLX GLM-OCR 可用，模型: {model_name}"
+            else:
+                result["message"] = f"MLX 不可用，将自动降级到 PaddleOCR: {mlx_message}"
+        elif provider == "ollama":
             ollama_cfg = cfg["ocr"].get("ollama", {})
             base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
             async with http_session.get(f"{base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)) as resp:
@@ -1213,12 +1273,19 @@ async def websocket_ocr(websocket: WebSocket):
 # === 健康检查 ===
 @app.get("/health")
 async def health_check():
-    """检查服务及 Ollama 是否在线"""
+    """检查服务及本地模型状态"""
+    cfg = get_ocr_config()
+    provider = cfg.get("ocr", {}).get("provider", "mlx")
+    mlx_ready = False
+    mlx_model = cfg.get("ocr", {}).get("mlx", {}).get("model")
+    mlx_message = ""
+    if provider == "mlx":
+        mlx_ready, mlx_message = _mlx_runtime_status(mlx_model or "mlx-community/GLM-OCR-8bit")
+
     ollama_ok = False
     ollama_model = None
     ollama_loaded = False
     try:
-        cfg = get_ocr_config()
         ollama_cfg = cfg.get("ocr", {}).get("ollama", {})
         base_url = ollama_cfg.get("baseUrl", "http://localhost:11434").rstrip("/")
         target_model = ollama_cfg.get("model", "glm-ocr")
@@ -1238,6 +1305,12 @@ async def health_check():
 
     return {
         "status": "ok",
+        "provider": provider,
+        "mlx": {
+            "ready": mlx_ready,
+            "model": mlx_model,
+            "message": mlx_message
+        },
         "ollama": {
             "online": ollama_ok,
             "model": ollama_model,
@@ -1476,6 +1549,87 @@ def _get_local_ips():
     results.sort(key=lambda x: x[3])
     return results
 
+
+def _tailscale_cmd():
+    candidates = [
+        "tailscale",
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        "/opt/homebrew/bin/tailscale",
+        "/usr/local/bin/tailscale",
+    ]
+    for cmd in candidates:
+        try:
+            r = subprocess.run([cmd, "version"], capture_output=True, text=True, timeout=3)
+            if r.returncode == 0:
+                return cmd
+        except Exception:
+            continue
+    return None
+
+
+def _run_tailscale(args, timeout=8):
+    cmd = _tailscale_cmd()
+    if not cmd:
+        raise FileNotFoundError("未找到 Tailscale 命令。请在 Tailscale 设置里启用 CLI integration，或确认 Tailscale.app 已安装。")
+    return subprocess.run([cmd] + args, capture_output=True, text=True, timeout=timeout)
+
+
+def _tailscale_state():
+    state = {
+        "installed": False,
+        "connected": False,
+        "serve_running": False,
+        "dns_name": None,
+        "ip": None,
+        "url": None,
+        "serve_status": "",
+        "message": "",
+    }
+    cmd = _tailscale_cmd()
+    if not cmd:
+        state["message"] = "未找到 Tailscale 命令"
+        return state
+
+    state["installed"] = True
+    try:
+        r = subprocess.run([cmd, "status", "--json"], capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            state["message"] = (r.stderr or r.stdout or "Tailscale 未连接").strip()
+            return state
+        data = json.loads(r.stdout or "{}")
+        state["connected"] = data.get("BackendState") == "Running"
+        self_info = data.get("Self") or {}
+        dns_name = (self_info.get("DNSName") or "").rstrip(".")
+        ips = self_info.get("TailscaleIPs") or []
+        state["dns_name"] = dns_name or None
+        state["ip"] = ips[0] if ips else None
+        state["url"] = f"https://{dns_name}/" if dns_name else None
+    except Exception as e:
+        state["message"] = f"读取 Tailscale 状态失败: {e}"
+        return state
+
+    try:
+        r = subprocess.run([cmd, "serve", "status"], capture_output=True, text=True, timeout=5)
+        state["serve_status"] = (r.stdout or r.stderr or "").strip()
+        state["serve_running"] = (
+            r.returncode == 0
+            and f"http://localhost:{SERVER_PORT}" in state["serve_status"]
+            and ("https://" in state["serve_status"] or "proxy" in state["serve_status"])
+        )
+    except Exception:
+        state["serve_running"] = False
+
+    if not state["connected"]:
+        state["message"] = "Tailscale 未连接"
+    elif not state["url"]:
+        state["message"] = "未获取到 MagicDNS 地址，请确认 MagicDNS 已开启"
+    elif not state["serve_running"]:
+        state["message"] = "Tailscale 已连接，但还未发布扫描服务"
+    else:
+        state["message"] = "Tailscale 扫描地址已就绪"
+    return state
+
+
 @app.get("/api/network-info")
 async def network_info():
     """返回本机局域网IP，供手机WiFi模式连接使用"""
@@ -1491,6 +1645,33 @@ async def network_info():
         "wifi_url": f"http://{best_ip}:{SERVER_PORT}" if best_ip else None,
         "usb_url": f"http://localhost:{SERVER_PORT}"
     }
+
+
+@app.get("/api/tailscale-status")
+async def tailscale_status():
+    """返回 Tailscale 连接和 Serve 发布状态。"""
+    return _tailscale_state()
+
+
+@app.post("/api/tailscale-serve-start")
+async def tailscale_serve_start():
+    """一键启用 Tailscale Serve，把本机扫描服务发布成 HTTPS 地址。"""
+    try:
+        r = _run_tailscale(["serve", "--bg", f"http://localhost:{SERVER_PORT}"], timeout=12)
+        if r.returncode != 0:
+            return JSONResponse(
+                {"status": "error", "message": (r.stderr or r.stdout or "Tailscale Serve 启动失败").strip()},
+                status_code=500,
+            )
+        state = _tailscale_state()
+        state["status"] = "success"
+        state["output"] = (r.stdout or r.stderr or "").strip()
+        return state
+    except FileNotFoundError as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=503)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
 
 @app.get("/api/qr-code")
 async def qr_code(data: str):
@@ -1738,11 +1919,20 @@ async def open_on_phone_by_serial(serial: str):
 async def model_status():
     """检查当前 OCR 引擎状态"""
     cfg = get_ocr_config()
-    provider = cfg["ocr"].get("provider", "ollama")
+    provider = cfg["ocr"].get("provider", "mlx")
     result = {"provider": provider, "ready": False, "message": ""}
 
     try:
-        if provider == "ollama":
+        if provider == "mlx":
+            mlx_cfg = cfg["ocr"].get("mlx", {})
+            model_name = mlx_cfg.get("model", "mlx-community/GLM-OCR-8bit")
+            mlx_ready, mlx_message = _mlx_runtime_status(model_name)
+            result["ready"] = mlx_ready
+            if mlx_ready:
+                result["message"] = f"MLX 就绪: {model_name}"
+            else:
+                result["message"] = f"MLX 不可用，将自动降级到 PaddleOCR: {mlx_message}"
+        elif provider == "ollama":
             ollama_cfg = cfg["ocr"].get("ollama", {})
             target_model = ollama_cfg.get("model", "glm-ocr")
             base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
@@ -1781,11 +1971,15 @@ async def model_status():
 
 @app.post("/api/model-load")
 async def model_load():
-    """触发 Ollama 模型加载（异步后台执行）"""
+    """触发当前本地模型加载（异步后台执行）"""
     cfg = get_ocr_config()
-    provider = cfg["ocr"].get("provider", "ollama")
+    provider = cfg["ocr"].get("provider", "mlx")
+    if provider == "mlx":
+        asyncio.create_task(_do_mlx_model_load(cfg["ocr"].get("mlx", {})))
+        model = cfg["ocr"].get("mlx", {}).get("model", "mlx-community/GLM-OCR-8bit")
+        return {"ok": True, "message": f"正在加载 {model}...", "already_loaded": False}
     if provider != "ollama":
-        return {"ok": True, "message": "非 Ollama 引擎，无需加载"}
+        return {"ok": True, "message": "当前引擎无需手动加载"}
 
     ollama_cfg = cfg["ocr"].get("ollama", {})
     target_model = ollama_cfg.get("model", "glm-ocr")
@@ -1829,6 +2023,17 @@ async def _do_model_load(base_url: str, model: str, keep_alive: str):
         logger.warning(f"⚠️ 模型加载超时，模型可能已卡死")
     except Exception as e:
         logger.warning(f"⚠️ 模型加载异常: {e}")
+
+async def _do_mlx_model_load(mlx_cfg: dict):
+    """后台加载 MLX 模型到内存。"""
+    try:
+        text = await _runtime_for_ocr().recognize_mlx(_warmup_image_b64(), mlx_cfg)
+        if text.startswith("[MLX Error:"):
+            logger.warning(f"⚠️ MLX 模型加载失败: {text}")
+        else:
+            logger.info("✅ MLX 模型加载完成")
+    except Exception as e:
+        logger.warning(f"⚠️ MLX 模型加载异常: {e}")
 
 # === 日志 API ===
 @app.get("/api/logs")
@@ -1878,4 +2083,12 @@ app.mount("/", NoCacheStaticFiles(directory=BASE_DIR), name="static")
 if __name__ == "__main__":
     import uvicorn
     logger.info(f"🚀 FastAPI Server starting on http://localhost:{SERVER_PORT}")
-    uvicorn.run("server:app", host="0.0.0.0", port=SERVER_PORT, log_level="info")
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=SERVER_PORT,
+        log_level="info",
+        ws="websockets-sansio",
+        ws_ping_interval=None,
+        ws_per_message_deflate=False,
+    )
