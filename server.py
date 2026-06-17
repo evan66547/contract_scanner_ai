@@ -139,17 +139,20 @@ def _mlx_runtime_status(model_name: str = "mlx-community/GLM-OCR-8bit") -> tuple
     except Exception as e:
         return False, str(e)
 
+def _paddle_runtime_status() -> tuple[bool, str]:
+    if not importlib.util.find_spec("paddleocr"):
+        return False, "未安装 paddleocr"
+    if not importlib.util.find_spec("paddle"):
+        return False, "未安装 paddlepaddle"
+    return True, "PaddleOCR 可用"
+
 def _warmup_image_b64() -> str:
     """1x1 white JPEG for local model warmup."""
-    return (
-        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////"
-        "////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////"
-        "////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/"
-        "xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAGf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/"
-        "aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/"
-        "aAAgBAQABPyF//9oADAMBAAIAAwAAABCf/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPxB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/"
-        "aAAgBAgEBPxB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxB//9k="
-    )
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (1, 1), "white").save(buf, format="JPEG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
 
 app = FastAPI(title="Contract Scanner AI", lifespan=lifespan)
 
@@ -464,7 +467,13 @@ async def ocr_test():
                 result["ok"] = True
                 result["message"] = f"MLX GLM-OCR 可用，模型: {model_name}"
             else:
-                result["message"] = f"MLX 不可用，将自动降级到 PaddleOCR: {mlx_message}"
+                paddle_ready, paddle_message = _paddle_runtime_status()
+                result["ok"] = paddle_ready
+                result["message"] = (
+                    f"MLX 未就绪，已降级到 PaddleOCR: {mlx_message}"
+                    if paddle_ready
+                    else f"MLX 不可用，且 PaddleOCR 不可用: {mlx_message}; {paddle_message}"
+                )
         elif provider == "ollama":
             ollama_cfg = cfg["ocr"].get("ollama", {})
             base_url = ollama_cfg.get("baseUrl", "http://localhost:11434")
@@ -793,7 +802,7 @@ def _merge_secrets(existing: dict, incoming: dict) -> dict:
 
 @app.get("/api/config")
 async def get_config():
-    return JSONResponse(_redact_config(load_json(CONFIG_FILE, {})))
+    return JSONResponse(_redact_config(get_ocr_config()))
 
 @app.post("/api/config")
 async def save_config(request: Request):
@@ -801,7 +810,7 @@ async def save_config(request: Request):
     try:
         incoming = await request.json()
         existing = load_json(CONFIG_FILE, {})
-        merged = _merge_secrets(existing, incoming)
+        merged = OcrRuntime._ensure_forward_compat(_merge_secrets(existing, incoming))
         save_json(CONFIG_FILE, merged)
         return {"success": True}
     except Exception as e:
@@ -1931,7 +1940,13 @@ async def model_status():
             if mlx_ready:
                 result["message"] = f"MLX 就绪: {model_name}"
             else:
-                result["message"] = f"MLX 不可用，将自动降级到 PaddleOCR: {mlx_message}"
+                paddle_ready, paddle_message = _paddle_runtime_status()
+                result["ready"] = paddle_ready
+                result["message"] = (
+                    f"MLX 未就绪，已降级到 PaddleOCR: {mlx_message}"
+                    if paddle_ready
+                    else f"MLX 不可用，且 PaddleOCR 不可用: {mlx_message}; {paddle_message}"
+                )
         elif provider == "ollama":
             ollama_cfg = cfg["ocr"].get("ollama", {})
             target_model = ollama_cfg.get("model", "glm-ocr")

@@ -22,6 +22,8 @@ from typing import Any, Optional
 
 import aiohttp
 
+os.environ.setdefault("HF_HOME", str(Path(__file__).with_name("models") / "huggingface"))
+
 logger = logging.getLogger(__name__)
 
 _OLLAMA_PROMPT_LEAK_MARKERS = (
@@ -231,6 +233,29 @@ class OcrRuntime:
     @classmethod
     def _ensure_forward_compat(cls, cfg: dict) -> dict:
         """确保新 provider 配置块存在（向前兼容）"""
+        scan_cfg = cfg.setdefault("scan", {})
+        scan_cfg.setdefault("interval", 1500)
+        scan_cfg.setdefault("width", 640)
+        scan_cfg.setdefault("height", 480)
+        scan_cfg.setdefault("frameRate", 30)
+
+        roi_cfg = cfg.setdefault("roi", {})
+        roi_cfg.setdefault("x", 5)
+        roi_cfg.setdefault("y", 5)
+        roi_cfg.setdefault("width", 90)
+        roi_cfg.setdefault("height", 12)
+
+        matching_cfg = cfg.setdefault("matching", {})
+        matching_cfg.setdefault("minConfidence", 0)
+        matching_cfg.setdefault("levenshteinDistance", None)
+        matching_cfg.setdefault("minMatchRatio", 0.6)
+        matching_cfg.setdefault("requirePrefix", True)
+        matching_cfg.setdefault("minKeywordLength", 5)
+
+        ui_cfg = cfg.setdefault("ui", {})
+        ui_cfg.setdefault("showDebug", True)
+        ui_cfg.setdefault("showOverlay", True)
+
         ocr_cfg = cfg.setdefault("ocr", {})
         if "mlx" not in ocr_cfg:
             ocr_cfg["mlx"] = {
@@ -488,12 +513,11 @@ class OcrRuntime:
 
         try:
             from huggingface_hub import try_to_load_from_cache
-            from huggingface_hub.constants import _CACHED_NO_EXIST
         except Exception:
             return False
 
         cached = try_to_load_from_cache(model_name, "model.safetensors")
-        return bool(cached and cached is not _CACHED_NO_EXIST and os.path.exists(cached))
+        return bool(cached and isinstance(cached, (str, os.PathLike)) and os.path.exists(cached))
 
     @staticmethod
     def _apply_mlx_prompt(processor, config, prompt: str) -> str:

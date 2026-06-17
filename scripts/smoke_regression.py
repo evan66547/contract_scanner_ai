@@ -492,6 +492,15 @@ async def test_mlx_provider_config_and_dispatch():
             cfg.get("ocr", {}).get("ollama", {}).get("model") == "glm-ocr",
             f"got: {cfg.get('ocr', {}).get('ollama')}",
         )
+        _result(
+            "adds scan defaults for admin",
+            cfg.get("scan", {}).get("interval") == 1500
+            and cfg.get("scan", {}).get("width") == 640
+            and cfg.get("roi", {}).get("width") == 90
+            and cfg.get("matching", {}).get("minMatchRatio") == 0.6
+            and cfg.get("ui", {}).get("showOverlay") is True,
+            f"got: scan={cfg.get('scan')} roi={cfg.get('roi')} matching={cfg.get('matching')} ui={cfg.get('ui')}",
+        )
 
         async def fake_mlx(image_b64, runtime_cfg):
             return f"mlx:{runtime_cfg.get('model')}:{image_b64}"
