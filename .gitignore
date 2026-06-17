@@ -33,3 +33,6 @@ worktrees/
 
 # Windows deploy auto-downloads (ADB platform-tools ~10MB)
 tools/
+
+# Local model weights
+models/
