@@ -834,7 +834,7 @@
 <div class="page-header">
   <button class="lang-toggle" id="lang-toggle" onclick="switchLang()">🇬🇧 EN</button>
   <h1><span data-i18n="admin.header">Scanner AI Control Panel</span><span class="ai-mark">AI</span></h1>
-  <div class="subtitle" data-i18n="admin.subtitle">GLM-OCR Vision Model · Ollama Local Engine</div>
+  <div class="subtitle" data-i18n="admin.subtitle">GLM-OCR Vision Model · MLX Local Engine</div>
 </div>
 <!-- 服务器状态 -->
 <div class="card overview-card">
@@ -934,6 +934,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 
 <!-- 操作按钮 -->
 <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+<button class="btn btn-secondary btn-sm" style="padding:8px 16px;font-weight:600" id="btn-adb-repair" onclick="adbRepair()">重启 ADB 检测</button>
 <button class="btn btn-secondary btn-sm" style="padding:8px 16px;font-weight:600" id="btn-adb-start-all" onclick="adbWifiStartAll()">⚡ 开启无线连接</button>
 <button class="btn btn-secondary btn-sm" style="padding:8px 16px;font-weight:600" id="btn-adb-connect-all" onclick="adbWifiConnectAll()">📡 连接手机</button>
 </div>
@@ -1066,27 +1067,11 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 </div>
 </label>
 <label style="flex:1;cursor:pointer;min-width:100px">
-<input type="radio" name="ocr-engine" value="ollama" onchange="switchOcrProvider()" style="display:none"/>
-<div id="engine-tab-ollama" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
-<div style="font-size:24px;margin-bottom:4px">🧩</div>
-<div style="font-weight:700;font-size:13px">Ollama</div>
-<div style="font-size:11px;color:var(--text-muted);margin-top:2px">兼容 · 旧本地引擎</div>
-</div>
-</label>
-<label style="flex:1;cursor:pointer;min-width:100px">
 <input type="radio" name="ocr-engine" value="baidu" onchange="switchOcrProvider()" style="display:none"/>
 <div id="engine-tab-baidu" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
 <div style="font-size:24px;margin-bottom:4px">☁️</div>
 <div style="font-weight:700;font-size:13px">百度 OCR</div>
 <div style="font-size:11px;color:var(--text-muted);margin-top:2px">云端 · 中文最强 · 有免费额度</div>
-</div>
-</label>
-<label style="flex:1;cursor:pointer;min-width:100px">
-<input type="radio" name="ocr-engine" value="ocrspace" onchange="switchOcrProvider()" style="display:none"/>
-<div id="engine-tab-ocrspace" class="engine-tab" style="padding:14px;border-radius:12px;text-align:center;border:2px solid var(--border-color);transition:all 0.2s">
-<div style="font-size:24px;margin-bottom:4px">🌐</div>
-<div style="font-weight:700;font-size:13px">OCR.space</div>
-<div style="font-size:11px;color:var(--text-muted);margin-top:2px">云端 · 免费25000次/月</div>
 </div>
 </label>
 <label style="flex:1;cursor:pointer;min-width:100px">
@@ -1100,9 +1085,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 </div>
 <select id="ocr-provider" style="display:none">
 <option value="mlx">MLX GLM-OCR</option>
-<option value="ollama">Ollama</option>
 <option value="baidu">Baidu</option>
-<option value="ocrspace">OCR.space</option>
 <option value="paddle">PaddleOCR</option>
 </select>
 <!-- MLX 配置 -->
@@ -1121,22 +1104,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 </div>
 <div class="info-box ai-info">
 <i data-lucide="shield-check"></i>
-<div><strong>本地 MLX：</strong>直接加载 GLM-OCR 8bit 模型，不需要启动 Ollama；首次运行会下载模型。</div>
-</div>
-</div>
-<!-- Ollama 配置 -->
-<div id="ocr-ollama" class="ocr-provider-config" style="display:none">
-<div class="form-group">
-<label><span data-i18n="admin.lbl.ollama_model">Model</span><div class="label-desc">Ollama 中的视觉模型名称</div></label>
-<input id="ollama-model" type="text" style="width:200px" placeholder="glm-ocr"/>
-</div>
-<div class="form-group">
-<label><span data-i18n="admin.lbl.ollama_keepalive">Keep Alive</span><div class="label-desc">模型驻留内存时间</div></label>
-<input id="ollama-keepalive" type="text" style="width:200px" placeholder="10m"/>
-</div>
-<div class="info-box ai-info">
-<i data-lucide="shield-check"></i>
-<div><strong>隐私优势：</strong>所有数据完全在本地处理，不发送任何信息到外部网络。</div>
+<div><strong>本地 MLX：</strong>直接加载 GLM-OCR 8bit 模型，在本机离线运行；首次运行会下载模型。</div>
 </div>
 </div>
 <!-- 百度 OCR 配置 -->
@@ -1152,25 +1120,6 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 <div class="info-box">
 <i data-lucide="info" style="color:var(--accent-color)"></i>
 <div><strong>免费额度：</strong>通用文字识别（标准版）每月 1000 次免费。高精度版每月 50 次免费。<br/>获取密钥：<a href="https://console.bce.baidu.com/ai/#/ai/ocr/overview/index" target="_blank" style="color:var(--accent-color)">百度智能云 OCR 控制台</a></div>
-</div>
-</div>
-<!-- OCR.space 配置 -->
-<div id="ocr-ocrspace" class="ocr-provider-config" style="display:none">
-<div class="form-group">
-<label>API Key<div class="label-desc">OCR.space 免费注册获取</div></label>
-<input id="ocrspace-apikey" type="password" style="width:260px" placeholder="OCR.space API Key"/>
-</div>
-<div class="form-group">
-<label><span data-i18n="admin.lbl.ocrspace_lang">识别语言</span><div class="label-desc">chs = 简体中文</div></label>
-<select id="ocrspace-lang" style="width:200px">
-<option value="chs">简体中文 (chs)</option>
-<option value="cht">繁体中文 (cht)</option>
-<option value="eng">英文 (eng)</option>
-</select>
-</div>
-<div class="info-box">
-<i data-lucide="info" style="color:var(--accent-color)"></i>
-<div><strong>免费额度：</strong>每月 25,000 次免费识别，无需信用卡。<br/>注册获取 API Key：<a href="https://ocr.space/ocrapi" target="_blank" style="color:var(--accent-color)">OCR.space 官网</a></div>
 </div>
 </div>
 <!-- PaddleOCR 配置 -->
@@ -1360,7 +1309,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 <h2><i class="icon" data-lucide="info" style="color:var(--text-muted)"></i> <span data-i18n="admin.card.about">About System</span></h2>
 <div style="font-size:13px; line-height:1.8; color:var(--text-muted)">
 <p style="margin:4px 0"><strong data-i18n="admin.about.ocr">OCR Engine</strong><span data-i18n="admin.about.ocr_val">GLM-OCR 0.9B (Zhipu AI Vision Model)</span></p>
-<p style="margin:4px 0"><strong data-i18n="admin.about.engine">Inference Engine</strong><span data-i18n="admin.about.engine_val">Ollama (Apple Metal GPU Accel)</span></p>
+<p style="margin:4px 0"><strong data-i18n="admin.about.engine">Inference Engine</strong><span data-i18n="admin.about.engine_val">MLX (Apple Metal GPU Accel)</span></p>
 <p style="margin:4px 0"><strong data-i18n="admin.about.alg">Matching Algorithm</strong><span data-i18n="admin.about.alg_val">Keyword / Prefix / Levenshtein Distance</span></p>
 <p style="margin:4px 0"><strong data-i18n="admin.about.db">Built-in Data</strong><span id="target-count" style="font-weight:700;color:var(--accent-color)">--</span> <span data-i18n="admin.about.db_val">targets tracked</span></p>
 </div>
@@ -1584,7 +1533,7 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
 
             // OCR Engine
             const ocr = currentConfig.ocr || {};
-            const provider = ocr.provider || 'mlx';
+            const provider = ['mlx', 'baidu', 'paddle'].includes(ocr.provider) ? ocr.provider : 'mlx';
             document.getElementById('ocr-provider').value = provider;
             const radioBtn = document.querySelector(`input[name="ocr-engine"][value="${provider}"]`);
             if (radioBtn) radioBtn.checked = true;
@@ -1592,15 +1541,9 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
             document.getElementById('mlx-model').value = mlx.model || 'mlx-community/GLM-OCR-8bit';
             document.getElementById('mlx-max-tokens').value = mlx.maxTokens || 160;
             document.getElementById('mlx-temperature').value = mlx.temperature ?? 0;
-            const ollama = ocr.ollama || {};
-            document.getElementById('ollama-model').value = ollama.model || 'glm-ocr';
-            document.getElementById('ollama-keepalive').value = ollama.keepAlive || '10m';
             const baidu = ocr.baidu || {};
             document.getElementById('baidu-apikey').value = baidu.apiKey || '';
             document.getElementById('baidu-secretkey').value = baidu.secretKey || '';
-            const ocrspace = ocr.ocrspace || {};
-            document.getElementById('ocrspace-apikey').value = ocrspace.apiKey || '';
-            document.getElementById('ocrspace-lang').value = ocrspace.language || 'chs';
             const paddle = ocr.paddle || {};
             document.getElementById('paddle-usegpu').value = paddle.useGpu ? 'true' : 'false';
             switchOcrProvider();
@@ -1629,18 +1572,9 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                         temperature: parseFloat(document.getElementById('mlx-temperature').value || '0'),
                         prompt: (currentConfig.ocr && currentConfig.ocr.mlx && currentConfig.ocr.mlx.prompt) || '你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。请确保公司名称、日期等关键信息准确。直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式：'
                     },
-                    ollama: {
-                        baseUrl: (currentConfig.ocr && currentConfig.ocr.ollama && currentConfig.ocr.ollama.baseUrl) || 'http://localhost:11434',
-                        model: document.getElementById('ollama-model').value || 'glm-ocr',
-                        keepAlive: document.getElementById('ollama-keepalive').value || '10m'
-                    },
                     baidu: {
                         apiKey: document.getElementById('baidu-apikey').value,
                         secretKey: document.getElementById('baidu-secretkey').value
-                    },
-                    ocrspace: {
-                        apiKey: document.getElementById('ocrspace-apikey').value,
-                        language: document.getElementById('ocrspace-lang').value
                     },
                     paddle: {
                         useGpu: document.getElementById('paddle-usegpu').value === 'true',
@@ -1908,18 +1842,9 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                         temperature: parseFloat(document.getElementById('mlx-temperature').value || '0'),
                         prompt: (currentConfig.ocr && currentConfig.ocr.mlx && currentConfig.ocr.mlx.prompt) || '你是一个高精度的合同 OCR 助手。请提取图片中的所有文字。如果是复印件，请忽略背景噪点、模糊的印章和阴影。请确保公司名称、日期等关键信息准确。直接输出识别到的文字内容，不要包含任何解释、说明或 Markdown 格式：'
                     },
-                    ollama: {
-                        baseUrl: (currentConfig.ocr && currentConfig.ocr.ollama && currentConfig.ocr.ollama.baseUrl) || 'http://localhost:11434',
-                        model: document.getElementById('ollama-model').value || 'glm-ocr',
-                        keepAlive: document.getElementById('ollama-keepalive').value || '10m'
-                    },
                     baidu: {
                         apiKey: document.getElementById('baidu-apikey').value,
                         secretKey: document.getElementById('baidu-secretkey').value
-                    },
-                    ocrspace: {
-                        apiKey: document.getElementById('ocrspace-apikey').value,
-                        language: document.getElementById('ocrspace-lang').value
                     },
                     paddle: {
                         useGpu: document.getElementById('paddle-usegpu').value === 'true',
@@ -2408,25 +2333,16 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
                 const statusEl = document.getElementById('model-status');
                 const engineEl = document.getElementById('ai-engine');
 
-                const providerNames = {mlx: 'MLX GLM-OCR', ollama: 'Ollama GLM-OCR', baidu: '百度 OCR', ocrspace: 'OCR.space', openai: 'OpenAI', paddle: 'PaddleOCR'};
+                const providerNames = {mlx: 'MLX GLM-OCR', baidu: '百度 OCR', paddle: 'PaddleOCR'};
                 engineEl.textContent = providerNames[data.provider] || data.provider;
 
-                if (data.provider === 'ollama') {
-                    if (data.ready) {
-                        _modelLoading = false;
-                        _loadProgress = 100;
-                        if (_loadTimer) { clearInterval(_loadTimer); _loadTimer = null; }
-                        statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;box-shadow:0 0 6px rgba(16,185,129,0.5)"></span> <span style="color:#10b981;font-weight:600">' + t('admin.stat.ready') + '</span>';
-                    } else if (!_modelLoading) {
-                        // 未加载，显示加载按钮
-                        statusEl.innerHTML = '<button class="btn btn-primary btn-sm" onclick="triggerModelLoad()" style="padding:3px 12px;font-size:11px">点击加载模型</button>';
-                    }
+                if (data.ready) {
+                    _modelLoading = false;
+                    _loadProgress = 100;
+                    if (_loadTimer) { clearInterval(_loadTimer); _loadTimer = null; }
+                    statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;box-shadow:0 0 6px rgba(16,185,129,0.5)"></span> <span style="color:#10b981;font-weight:600">' + t('admin.stat.ready') + '</span>';
                 } else {
-                    if (data.ready) {
-                        statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;box-shadow:0 0 6px rgba(16,185,129,0.5)"></span> <span style="color:#10b981;font-weight:600">' + t('admin.stat.ready') + '</span>';
-                    } else {
-                        statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#f59e0b;border-radius:50%;box-shadow:0 0 6px rgba(245,158,11,0.5)"></span> <span style="color:#f59e0b">' + (data.message || t('admin.stat.standby')) + '</span>';
-                    }
+                    statusEl.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#f59e0b;border-radius:50%;box-shadow:0 0 6px rgba(245,158,11,0.5)"></span> <span style="color:#f59e0b">' + (data.message || t('admin.stat.standby')) + '</span>';
                 }
             } catch (e) {
                 // 静默失败
@@ -2525,6 +2441,31 @@ Android Chrome 若拦截摄像头，需在 <code>chrome://flags/#unsafely-treat-
             } finally {
                 btn.textContent = '开启';
                 btn.disabled = false;
+            }
+        }
+
+        async function adbRepair() {
+            const btn = document.getElementById('btn-adb-repair');
+            if (btn) {
+                btn.textContent = '检测中...';
+                btn.disabled = true;
+            }
+            try {
+                const res = await fetch('/api/adb-repair', { method: 'POST' });
+                const data = await res.json();
+                refreshDeviceList();
+                const prefix = data.status === 'success' ? '✅ ' : '⚠️ ';
+                const usbText = data.usb_devices && data.usb_devices.length
+                    ? '\n\nUSB 已识别: ' + data.usb_devices.map(d => (d.product + ' ' + (d.serial || '')).trim()).join(', ')
+                    : '';
+                alert(prefix + data.message + usbText);
+            } catch (e) {
+                alert('❌ ADB 检测失败: ' + e.message);
+            } finally {
+                if (btn) {
+                    btn.textContent = '重启 ADB 检测';
+                    btn.disabled = false;
+                }
             }
         }
 

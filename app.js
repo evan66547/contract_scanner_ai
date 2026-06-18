@@ -1522,6 +1522,28 @@ async function startAdbWifi() {
   }
 }
 
+async function repairAdb() {
+  const btn = document.getElementById('adb-repair-btn');
+  const statusEl = document.getElementById('adb-status');
+  if (btn) { btn.disabled = true; btn.textContent = '检测中…'; }
+  if (statusEl) statusEl.textContent = '正在重启 ADB 并重新检测…';
+  try {
+    const res = await fetch('/api/adb-repair', { method: 'POST' });
+    const data = await res.json();
+    if (statusEl) statusEl.textContent = data.message || 'ADB 检测完成';
+    if (data.status === 'success') {
+      adbStepStates = [2, 1, 0, 0, 0];
+    } else {
+      adbStepStates = [1, 0, 0, 0, 0];
+    }
+    updateAdbSteps();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'ADB 检测失败: ' + e.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '重启 ADB 检测'; }
+  }
+}
+
 function copyAdbCmd() {
   const cmdBox = document.getElementById('adb-cmd-box');
   if (!cmdBox) return;

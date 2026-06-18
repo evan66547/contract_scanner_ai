@@ -267,6 +267,18 @@ def _adb_error_message_from_devices(devices: list) -> str:
     statuses = ", ".join(f"{d['serial']}={d['adb_state']}" for d in devices)
     return f"未检测到可用 Android 设备: {statuses}"
 
+
+def _adb_device_public_fields(devices: list) -> list:
+    return [
+        {
+            "serial": d["serial"],
+            "mode": d["mode"],
+            "model": d["model"],
+            "adb_state": d["adb_state"],
+        }
+        for d in devices
+    ]
+
 # Pydantic models
 class ExcelUploadResult(BaseModel):
     headers: List[str]
@@ -1707,15 +1719,7 @@ async def adb_wifi_status():
         r = subprocess.run(["adb", "devices", "-l"], capture_output=True, text=True, timeout=5)
         target_serial = None
         devices = _parse_adb_device_lines(r.stdout)
-        result["devices"] = [
-            {
-                "serial": d["serial"],
-                "mode": d["mode"],
-                "model": d["model"],
-                "adb_state": d["adb_state"],
-            }
-            for d in devices
-        ]
+        result["devices"] = _adb_device_public_fields(devices)
         usable_devices = [d for d in devices if d["adb_state"] == "device"]
         usb_devices = [d for d in usable_devices if d["mode"] == "usb"]
         target_device = usb_devices[0] if usb_devices else (usable_devices[0] if usable_devices else None)
@@ -1811,6 +1815,54 @@ async def adb_devices_list():
     devices = _get_all_adb_devices()
     message = "" if devices else _adb_error_message_from_devices([])
     return {"devices": devices, "count": len(devices), "message": message}
+
+
+@app.post("/api/adb-repair")
+async def adb_repair():
+    """重启 ADB server 并重新诊断 USB/授权状态。"""
+    steps = []
+
+    def run_adb(cmd: list, timeout: int):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            steps.append({
+                "cmd": " ".join(cmd),
+                "returncode": r.returncode,
+                "stdout": (r.stdout or "").strip(),
+                "stderr": (r.stderr or "").strip(),
+            })
+            return r
+        except Exception as e:
+            steps.append({
+                "cmd": " ".join(cmd),
+                "returncode": -1,
+                "stdout": "",
+                "stderr": str(e),
+            })
+            return None
+
+    run_adb(["adb", "kill-server"], 5)
+    await asyncio.sleep(0.5)
+    run_adb(["adb", "start-server"], 10)
+    await asyncio.sleep(0.5)
+    devices_result = run_adb(["adb", "devices", "-l"], 5)
+    output = devices_result.stdout if devices_result else ""
+    devices = _parse_adb_device_lines(output)
+    usable_devices = [d for d in devices if d["adb_state"] == "device"]
+    usb_devices = _get_usb_android_devices()
+    if usable_devices:
+        message = "ADB 已识别 Pixel，可以继续开启无线连接。"
+        status = "success"
+    else:
+        message = _adb_error_message_from_devices(devices)
+        status = "needs_phone_action" if usb_devices else "error"
+    return {
+        "status": status,
+        "message": message,
+        "devices": _adb_device_public_fields(devices),
+        "usb_devices": usb_devices,
+        "steps": steps,
+    }
 
 @app.post("/api/adb-wifi-start-all")
 async def adb_wifi_start_all():
