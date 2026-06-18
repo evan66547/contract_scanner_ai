@@ -9,11 +9,13 @@ import asyncio
 import base64
 import binascii
 import concurrent.futures
+import gc
 import json
 import logging
 import os
 import platform
 import re
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -144,6 +146,14 @@ class OcrRuntime:
         self._mlx_processor = None
         self._mlx_config = None
         self._mlx_model_name = None
+        mx = sys.modules.get("mlx.core")
+        if mx is not None:
+            try:
+                mx.clear_cache()
+                mx.metal.clear_cache()
+            except Exception:
+                pass
+        gc.collect()
         self.http_session = None
 
     def get_config(self) -> dict:

@@ -71,16 +71,21 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(warmup_model())
 
     yield
-    global _fallback_ocr_runtime
+    await _close_runtime_resources()
+    logger.info("🔚 aiohttp Session 已关闭")
+
+async def _close_runtime_resources():
+    global http_session, _ocr_runtime, _fallback_ocr_runtime
     if _ocr_runtime is not None:
         await _ocr_runtime.close()
+        _ocr_runtime = None
         logger.info("🔚 OCR Runtime 已关闭")
     if _fallback_ocr_runtime is not None:
         await _fallback_ocr_runtime.close()
         _fallback_ocr_runtime = None
         logger.info("🔚 Fallback OCR Runtime 已关闭")
-    await http_session.close()
-    logger.info("🔚 aiohttp Session 已关闭")
+    if http_session and not http_session.closed:
+        await http_session.close()
 
 async def warmup_model():
     """启动后异步预热当前本地模型。"""
@@ -1019,6 +1024,7 @@ async def admin_reset():
     return {"success": True, "disconnected": disconnected}
 
 async def _shutdown_process():
+    await _close_runtime_resources()
     await asyncio.sleep(0.3)
     logger.info("🛑 管理面板请求关闭程序")
     os._exit(0)

@@ -200,10 +200,18 @@ async def test_ocr_runtime_lifecycle():
 
     session = aiohttp.ClientSession()
     rt = OcrRuntime(os.path.join(ROOT, "config.json"), session)
+    rt._mlx_model = object()
+    rt._mlx_processor = object()
+    rt._mlx_config = object()
+    rt._mlx_model_name = "test-model"
 
     # 2a: close sets _closed
     await rt.close()
     _result("close sets _closed", rt._closed is True)
+    _result(
+        "close releases cached mlx refs",
+        rt._mlx_model is None and rt._mlx_processor is None and rt._mlx_config is None and rt._mlx_model_name is None,
+    )
 
     # 2b: recognize methods return error string, not exception
     for name, coro_fn in [
@@ -235,6 +243,41 @@ async def test_ocr_runtime_lifecycle():
         _result("double close safe", False, str(e))
 
     await session.close()
+
+
+async def test_server_runtime_resource_close():
+    print("\n=== 2b) Server runtime resource close ===")
+
+    import server
+
+    class FakeRuntime:
+        def __init__(self):
+            self.closed = 0
+
+        async def close(self):
+            self.closed += 1
+
+    class FakeSession:
+        closed = False
+
+        async def close(self):
+            self.closed = True
+
+    old = (server.http_session, server._ocr_runtime, server._fallback_ocr_runtime)
+    session = FakeSession()
+    primary = FakeRuntime()
+    fallback = FakeRuntime()
+    try:
+        server.http_session = session
+        server._ocr_runtime = primary
+        server._fallback_ocr_runtime = fallback
+        await server._close_runtime_resources()
+        _result("closes primary runtime", primary.closed == 1)
+        _result("closes fallback runtime", fallback.closed == 1)
+        _result("closes http session", session.closed is True)
+        _result("clears runtime globals", server._ocr_runtime is None and server._fallback_ocr_runtime is None)
+    finally:
+        server.http_session, server._ocr_runtime, server._fallback_ocr_runtime = old
 
 
 # ───────────────────────────────────────
@@ -543,6 +586,7 @@ def main():
 
     # Async tests
     asyncio.run(test_ocr_runtime_lifecycle())
+    asyncio.run(test_server_runtime_resource_close())
     asyncio.run(test_paddle_fallback())
     asyncio.run(test_paddle_v6_tiny_init())
     test_ollama_cleanup()
