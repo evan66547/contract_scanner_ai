@@ -10,6 +10,10 @@
 
 Built for debt-recovery / evidence hunting: scan piles of paper with a phone, match company names or contract IDs against a local target list.
 
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Architecture: phone camera → WebSocket → local FastAPI OCR → fuzzy match targets" width="900" />
+</p>
+
 ## Features
 
 - **Local / privacy-first** — MLX GLM-OCR, Ollama, PaddleOCR; optional Baidu / OCR.Space
