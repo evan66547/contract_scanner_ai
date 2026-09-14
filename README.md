@@ -34,10 +34,18 @@ make live-check      # optional smoke
 - Admin: `http://localhost:8093/admin.html`
 - Scanner: same Wi‑Fi URL printed by `run.sh`, or ADB / Tailscale (see [full guide](./docs/DETAILED_README.md))
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Docs
 
 - [Detailed README (EN + 中文)](./docs/DETAILED_README.md) — engines, Tailscale, ADB, admin
 - Config: `config.example.json` · Targets: `targets.example.json`
+
+## Security
+
+See [SECURITY.md](./SECURITY.md). Please report vulnerabilities privately.
 
 ## Privacy
 
